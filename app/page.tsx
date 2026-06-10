@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Plan, PlanItem } from "./api/plan/route";
 import type { Prediction } from "./api/questions/route";
+import type { ModelAnswer } from "./api/answer/route";
 import { extractPdfText } from "@/lib/pdf";
 
 const LOADING_LINES = [
@@ -81,7 +82,19 @@ export default function Home() {
   const [predicting, setPredicting] = useState(false);
   const [predictError, setPredictError] = useState<string | null>(null);
   const [copiedQ, setCopiedQ] = useState(false);
+  const [stats, setStats] = useState<{ plans: number; predictions: number } | null>(null);
+  const [answers, setAnswers] = useState<Record<number, ModelAnswer>>({});
+  const [answerLoading, setAnswerLoading] = useState<number | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch("/api/stats")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.plans > 0) setStats(d);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!loading) return;
@@ -166,9 +179,35 @@ export default function Home() {
     setPyqError(null);
   }
 
+  async function getAnswer(i: number, question: string, marks: number) {
+    if (answers[i] || answerLoading !== null) return;
+    setAnswerLoading(i);
+    try {
+      const res = await fetch("/api/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, marks, subject: prediction?.subject ?? plan?.subject }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Something broke. Try again.");
+      setAnswers((a) => ({ ...a, [i]: data }));
+    } catch (e) {
+      setAnswers((a) => ({
+        ...a,
+        [i]: {
+          answer: e instanceof Error ? `⚠️ ${e.message}` : "⚠️ Something broke. Try again.",
+          examiner_tip: "",
+        },
+      }));
+    } finally {
+      setAnswerLoading(null);
+    }
+  }
+
   async function predict() {
     setPredicting(true);
     setPredictError(null);
+    setAnswers({});
     try {
       const res = await fetch("/api/questions", {
         method: "POST",
@@ -214,6 +253,13 @@ export default function Home() {
         <p className="mt-3 text-lg text-zinc-400">
           Exam tonight? Get a ruthless study plan in 30 seconds.
         </p>
+        {stats && (
+          <p className="mt-2 text-xs font-bold text-emerald-400/80">
+            🔥 {stats.plans.toLocaleString()} plan{stats.plans === 1 ? "" : "s"} made
+            {stats.predictions > 0 &&
+              ` · ${stats.predictions.toLocaleString()} paper${stats.predictions === 1 ? "" : "s"} predicted`}
+          </p>
+        )}
       </header>
 
       {/* Form */}
@@ -420,6 +466,26 @@ export default function Home() {
                         <p className="mt-1 text-xs text-zinc-500">
                           {meta.label} · {q.evidence}
                         </p>
+                        {answers[i] ? (
+                          <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                            <p className="whitespace-pre-wrap text-sm text-zinc-300">
+                              {answers[i].answer}
+                            </p>
+                            {answers[i].examiner_tip && (
+                              <p className="mt-2 border-t border-zinc-800 pt-2 text-xs font-semibold text-amber-300">
+                                💡 {answers[i].examiner_tip}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => getAnswer(i, q.q, q.marks)}
+                            disabled={answerLoading !== null}
+                            className="mt-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {answerLoading === i ? "topper is writing… ✍️" : "✍️ model answer"}
+                          </button>
+                        )}
                       </li>
                     );
                   })}

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { bump } from "@/lib/counter";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL = "llama-3.3-70b-versatile";
@@ -110,6 +111,7 @@ export async function POST(req: Request) {
     const data = await res.json();
     const plan: Plan = JSON.parse(data.choices[0].message.content);
     if (!Array.isArray(plan.items) || plan.items.length === 0) throw new Error("empty plan");
+    bump("plans");
     return NextResponse.json(plan);
   } catch {
     return NextResponse.json(

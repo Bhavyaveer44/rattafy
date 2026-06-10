@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { bump } from "@/lib/counter";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL = "llama-3.3-70b-versatile";
@@ -86,6 +87,7 @@ export async function POST(req: Request) {
     const prediction: Prediction = JSON.parse(data.choices[0].message.content);
     if (!Array.isArray(prediction.questions) || prediction.questions.length === 0)
       throw new Error("empty prediction");
+    bump("predictions");
     return NextResponse.json(prediction);
   } catch {
     return NextResponse.json(
