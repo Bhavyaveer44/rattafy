@@ -30,6 +30,7 @@ Rules:
 - Allocate minutes ONLY to study and skim items. Total allocated minutes must be at most 85% of the available time (the rest is breaks and buffer — students always overrun).
 - Judge weightage like a real exam: numericals, derivations and frequently-asked units beat intro/history chapters.
 - "reason" is one short punchy line (max 12 words) telling them WHY, e.g. "12-mark question guaranteed, comes every year" or "2 marks max, not worth your night".
+- If previous year question papers (PYQs) are provided, they OVERRIDE your general intuition: count how often each topic actually appears, weight priorities by real frequency and marks, and cite the evidence in "reason" (e.g. "asked in every paper, 10 marks each time" or "never appeared in any PYQ — skip").
 - "strategy" is one sentence summarizing the night's approach.
 - "pep_talk" is 1-2 sentences, funny and motivating, desi-senior energy. No cringe.
 - "subject" is your best guess at the subject name from the syllabus.
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { syllabus?: string; hours?: number; goal?: string };
+  let body: { syllabus?: string; hours?: number; goal?: string; pyq?: string };
   try {
     body = await req.json();
   } catch {
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
   }
 
   const syllabus = (body.syllabus ?? "").trim().slice(0, 6000);
+  const pyq = (body.pyq ?? "").trim().slice(0, 24000);
   const hours = Number(body.hours);
   const goal = GOALS[body.goal ?? ""] ? body.goal! : "pass";
 
@@ -68,7 +70,11 @@ export async function POST(req: Request) {
     );
   }
 
-  const userPrompt = `Syllabus:\n${syllabus}\n\nHours left before the exam: ${hours}\nGoal: ${GOALS[goal]}`;
+  const userPrompt =
+    `Syllabus:\n${syllabus}\n\nHours left before the exam: ${hours}\nGoal: ${GOALS[goal]}` +
+    (pyq
+      ? `\n\nPrevious year question papers (use these to weight topics by what ACTUALLY gets asked):\n${pyq}`
+      : "");
 
   const res = await fetch(GROQ_URL, {
     method: "POST",

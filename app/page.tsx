@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Plan, PlanItem } from "./api/plan/route";
+import type { Prediction } from "./api/questions/route";
+import { extractPdfText } from "@/lib/pdf";
 
 const LOADING_LINES = [
   "Reading your syllabus so you don't have to…",
@@ -30,6 +32,23 @@ function formatMinutes(min: number) {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
+const LIKELIHOOD_META = {
+  hot: { emoji: "🔥", label: "HOT", chip: "bg-rose-500/20 text-rose-300" },
+  likely: { emoji: "✅", label: "LIKELY", chip: "bg-emerald-500/20 text-emerald-300" },
+  wildcard: { emoji: "🎲", label: "WILDCARD", chip: "bg-amber-500/20 text-amber-300" },
+} as const;
+
+function predictionToShareText(pred: Prediction) {
+  const lines = [`🔮 Predicted ${pred.subject} paper (via Rattafy):`, ""];
+  pred.questions.forEach((q, i) => {
+    lines.push(
+      `${i + 1}. ${LIKELIHOOD_META[q.likelihood].emoji} ${q.q} [${q.marks} marks]`
+    );
+  });
+  lines.push("", pred.disclaimer, "", `Predict yours 👉 ${window.location.origin}`);
+  return lines.join("\n");
+}
+
 function planToShareText(plan: Plan) {
   const lines = [`📚 My ${plan.subject} cram plan (via Rattafy):`, ""];
   for (const p of ["study", "skim", "sacrifice"] as const) {
@@ -53,6 +72,15 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [copied, setCopied] = useState(false);
+  const [pyqText, setPyqText] = useState("");
+  const [pyqNames, setPyqNames] = useState<string[]>([]);
+  const [pyqStatus, setPyqStatus] = useState<string | null>(null);
+  const [pyqError, setPyqError] = useState<string | null>(null);
+  const [planUsedPyq, setPlanUsedPyq] = useState(false);
+  const [prediction, setPrediction] = useState<Prediction | null>(null);
+  const [predicting, setPredicting] = useState(false);
+  const [predictError, setPredictError] = useState<string | null>(null);
+  const [copiedQ, setCopiedQ] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -72,11 +100,13 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setPlan(null);
+    setPrediction(null);
+    setPlanUsedPyq(Boolean(pyqText));
     try {
       const res = await fetch("/api/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ syllabus, hours, goal }),
+        body: JSON.stringify({ syllabus, hours, goal, pyq: pyqText }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something broke. Try again.");
@@ -102,6 +132,73 @@ export default function Home() {
     await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handlePyqFiles(list: FileList | null) {
+    if (!list?.length) return;
+    const files = Array.from(list).slice(0, 3);
+    setPyqError(null);
+    setPyqStatus("opening PDFs…");
+    try {
+      const { text, ocrPages } = await extractPdfText(files, (p) =>
+        setPyqStatus(
+          `${p.mode === "ocr" ? "🔍 reading scanned" : "📖 reading"} ${p.file} — page ${p.page}/${p.pages}`
+        )
+      );
+      if (text.length < 100) {
+        setPyqError("Couldn't read anything useful from those PDFs. Try different files.");
+        setPyqStatus(null);
+        return;
+      }
+      setPyqText(text);
+      setPyqNames(files.map((f) => f.name));
+      setPyqStatus(null);
+      if (ocrPages > 0) setPyqError(null);
+    } catch {
+      setPyqError("Couldn't read those PDFs. Make sure they're valid question papers.");
+      setPyqStatus(null);
+    }
+  }
+
+  function clearPyq() {
+    setPyqText("");
+    setPyqNames([]);
+    setPyqError(null);
+  }
+
+  async function predict() {
+    setPredicting(true);
+    setPredictError(null);
+    try {
+      const res = await fetch("/api/questions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ syllabus, pyq: pyqText }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Something broke. Try again.");
+      setPrediction(data);
+    } catch (e) {
+      setPredictError(e instanceof Error ? e.message : "Something broke. Try again.");
+    } finally {
+      setPredicting(false);
+    }
+  }
+
+  async function shareQuestions() {
+    if (!prediction) return;
+    const text = predictionToShareText(prediction);
+    if (navigator.share) {
+      try {
+        await navigator.share({ text });
+        return;
+      } catch {
+        /* user cancelled — fall through to clipboard */
+      }
+    }
+    await navigator.clipboard.writeText(text);
+    setCopiedQ(true);
+    setTimeout(() => setCopiedQ(false), 2000);
   }
 
   const studied = plan?.items.filter((i) => i.priority !== "sacrifice") ?? [];
@@ -133,6 +230,47 @@ export default function Home() {
             placeholder={"Unit 1: Introduction to DBMS…\nUnit 2: ER Model, Relational Model…\nUnit 3: SQL, Normalization…\n\n(copy-paste straight from the PDF, formatting doesn't matter)"}
             className="w-full resize-y rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-sm placeholder:text-zinc-600 focus:border-emerald-500 focus:outline-none"
           />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-zinc-300">
+            📜 Previous year papers{" "}
+            <span className="font-normal text-zinc-500">
+              — optional, makes the plan scary-accurate
+            </span>
+          </label>
+          {pyqText ? (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-violet-500/50 bg-violet-500/10 p-3 text-sm">
+              <span className="truncate text-violet-200">
+                📜 {pyqNames.join(", ")} — loaded ✅
+              </span>
+              <button
+                onClick={clearPyq}
+                className="shrink-0 rounded-full bg-zinc-800 px-2.5 py-0.5 text-xs font-bold text-zinc-400 hover:text-zinc-200"
+              >
+                ✕ remove
+              </button>
+            </div>
+          ) : pyqStatus ? (
+            <div className="animate-pulse rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-sm text-amber-300">
+              {pyqStatus}
+            </div>
+          ) : (
+            <label className="block cursor-pointer rounded-xl border border-dashed border-zinc-600 bg-zinc-950 p-4 text-center text-sm text-zinc-400 transition hover:border-violet-400 hover:text-zinc-200">
+              tap to upload PYQ PDFs (up to 3) — even scanned papers work 📸
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  handlePyqFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          )}
+          {pyqError && <p className="mt-1.5 text-xs text-rose-300">{pyqError}</p>}
         </div>
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
@@ -198,6 +336,11 @@ export default function Home() {
             <h2 className="text-xl font-bold">
               {plan.subject} — {formatMinutes(totalMinutes)} of focused war 🪖
             </h2>
+            {planUsedPyq && (
+              <p className="mt-1 text-xs font-bold text-violet-300">
+                📜 weighted by your actual question papers, not vibes
+              </p>
+            )}
             <p className="mt-1 text-sm text-zinc-300">{plan.strategy}</p>
           </div>
 
@@ -232,6 +375,65 @@ export default function Home() {
               </div>
             );
           })}
+
+          {/* Question paper predictor */}
+          <div className="rounded-2xl border border-violet-500/40 bg-violet-500/10 p-5">
+            {!prediction ? (
+              <>
+                <h3 className="text-lg font-bold">🔮 Predict the question paper</h3>
+                <p className="mt-1 text-sm text-zinc-400">
+                  {planUsedPyq
+                    ? "Your PYQs are loaded — predictions will follow the actual repetition patterns."
+                    : "Works best with PYQ PDFs uploaded above. Without them, it predicts from classic patterns."}
+                </p>
+                <button
+                  onClick={predict}
+                  disabled={predicting}
+                  className="mt-3 w-full rounded-xl bg-violet-500 py-3 font-bold text-zinc-950 transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {predicting ? "Channeling the paper-setter's mind… 🧙" : "PREDICT MY PAPER 🔮"}
+                </button>
+                {predictError && (
+                  <p className="mt-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-sm text-rose-300">
+                    {predictError}
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-bold">
+                  🔮 Most likely questions — {prediction.subject}
+                </h3>
+                <ul className="mt-3 space-y-2">
+                  {prediction.questions.map((q, i) => {
+                    const meta = LIKELIHOOD_META[q.likelihood] ?? LIKELIHOOD_META.likely;
+                    return (
+                      <li key={i} className="rounded-xl border border-zinc-700/60 bg-zinc-950/60 p-3.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="text-sm font-semibold">
+                            {i + 1}. {q.q}
+                          </span>
+                          <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold ${meta.chip}`}>
+                            {meta.emoji} {q.marks}m
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          {meta.label} · {q.evidence}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="mt-3 text-center text-xs italic text-zinc-500">{prediction.disclaimer}</p>
+                <button
+                  onClick={shareQuestions}
+                  className="mt-3 w-full rounded-xl bg-violet-500 py-3 font-bold text-zinc-950 transition hover:bg-violet-400"
+                >
+                  {copiedQ ? "Copied! Your classmates owe you one 📋" : "Share predicted paper 📤"}
+                </button>
+              </>
+            )}
+          </div>
 
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5 text-center">
             <p className="text-sm italic text-zinc-300">“{plan.pep_talk}”</p>
