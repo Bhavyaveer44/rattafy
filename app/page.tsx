@@ -5,6 +5,7 @@ import type { Plan, PlanItem } from "./api/plan/route";
 import type { Prediction } from "./api/questions/route";
 import type { ModelAnswer } from "./api/answer/route";
 import { extractPdfText } from "@/lib/pdf";
+import { imageToJpegDataUrl } from "@/lib/image";
 
 const LOADING_LINES = [
   "Reading your syllabus so you don't have to…",
@@ -73,6 +74,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [copied, setCopied] = useState(false);
+  const [photoStatus, setPhotoStatus] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [pyqText, setPyqText] = useState("");
   const [pyqNames, setPyqNames] = useState<string[]>([]);
   const [pyqStatus, setPyqStatus] = useState<string | null>(null);
@@ -170,6 +173,38 @@ export default function Home() {
     } catch {
       setPyqError("Couldn't read those PDFs. Make sure they're valid question papers.");
       setPyqStatus(null);
+    }
+  }
+
+  async function handleSyllabusPhotos(list: FileList | null) {
+    if (!list?.length) return;
+    const files = Array.from(list).slice(0, 3);
+    setPhotoError(null);
+    let added = "";
+    try {
+      for (let i = 0; i < files.length; i++) {
+        setPhotoStatus(`📷 reading photo ${i + 1}/${files.length}…`);
+        const image = await imageToJpegDataUrl(files[i]);
+        const res = await fetch("/api/ocr", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image, kind: "syllabus" }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Couldn't read that photo.");
+        if (data.text) added += (added ? "\n" : "") + data.text;
+      }
+      if (!added) {
+        setPhotoError("Couldn't read any text in those photos. Try a clearer shot.");
+      } else {
+        setSyllabus((s) => (s.trim() ? s.trimEnd() + "\n" + added : added));
+      }
+    } catch (e) {
+      setPhotoError(
+        e instanceof Error ? e.message : "Couldn't read those photos. Try again."
+      );
+    } finally {
+      setPhotoStatus(null);
     }
   }
 
@@ -276,6 +311,24 @@ export default function Home() {
             placeholder={"Unit 1: Introduction to DBMS…\nUnit 2: ER Model, Relational Model…\nUnit 3: SQL, Normalization…\n\n(copy-paste straight from the PDF, formatting doesn't matter)"}
             className="w-full resize-y rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-sm placeholder:text-zinc-600 focus:border-emerald-500 focus:outline-none"
           />
+          {photoStatus ? (
+            <p className="mt-1.5 animate-pulse text-xs text-amber-300">{photoStatus}</p>
+          ) : (
+            <label className="mt-1.5 inline-block cursor-pointer text-xs font-semibold text-zinc-500 transition hover:text-emerald-300">
+              📷 too lazy to type? snap a photo of the syllabus page instead
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  handleSyllabusPhotos(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          )}
+          {photoError && <p className="mt-1.5 text-xs text-rose-300">{photoError}</p>}
         </div>
 
         <div>

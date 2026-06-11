@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { bump } from "@/lib/counter";
+import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL = "llama-3.3-70b-versatile";
@@ -44,6 +45,10 @@ export async function POST(req: Request) {
       { error: "Server is missing its GROQ_API_KEY." },
       { status: 500 }
     );
+  }
+
+  if (!(await allow(req, "plan", 15, 3600))) {
+    return NextResponse.json({ error: LIMIT_MESSAGE }, { status: 429 });
   }
 
   let body: { syllabus?: string; hours?: number; goal?: string; pyq?: string };

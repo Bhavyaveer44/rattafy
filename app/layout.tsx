@@ -14,10 +14,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://rattafy.vercel.app"),
   title: "Rattafy — exam tonight? plan in 30 seconds",
   description:
     "Paste your syllabus, tell us how many hours you have left, and get a ruthless AI study plan: what to study, what to skim, what to sacrifice.",
   openGraph: {
+    title: "Rattafy — exam tonight? plan in 30 seconds",
+    description:
+      "AI cram planner for students. Study ⚡ Skim 👀 Sacrifice 💀",
+    url: "https://rattafy.vercel.app",
+    siteName: "Rattafy",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
     title: "Rattafy — exam tonight? plan in 30 seconds",
     description:
       "AI cram planner for students. Study ⚡ Skim 👀 Sacrifice 💀",
