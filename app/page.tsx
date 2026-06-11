@@ -74,6 +74,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [photoStatus, setPhotoStatus] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [pyqText, setPyqText] = useState("");
@@ -139,7 +140,7 @@ export default function Home() {
     const text = planToShareText(plan);
     if (navigator.share) {
       try {
-        await navigator.share({ text });
+        await navigator.share({ text, url: window.location.origin });
         return;
       } catch {
         /* user cancelled — fall through to clipboard */
@@ -148,6 +149,21 @@ export default function Home() {
     await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function copyLink() {
+    const url = window.location.origin;
+    if (navigator.share) {
+      try {
+        await navigator.share({ url });
+        return;
+      } catch {
+        /* user cancelled — fall through to clipboard */
+      }
+    }
+    await navigator.clipboard.writeText(url);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   }
 
   async function handlePyqFiles(list: FileList | null) {
@@ -264,7 +280,7 @@ export default function Home() {
     const text = predictionToShareText(prediction);
     if (navigator.share) {
       try {
-        await navigator.share({ text });
+        await navigator.share({ text, url: window.location.origin });
         return;
       } catch {
         /* user cancelled — fall through to clipboard */
@@ -562,6 +578,12 @@ export default function Home() {
                 className="flex-1 rounded-xl bg-emerald-500 py-3 font-bold text-zinc-950 transition hover:bg-emerald-400"
               >
                 {copied ? "Copied! Paste it in the group 📋" : "Share with classmates 📤"}
+              </button>
+              <button
+                onClick={copyLink}
+                className="flex-1 rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-3 font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+              >
+                {linkCopied ? "Link copied! 🔗" : "Share the link 🔗"}
               </button>
               <button
                 onClick={() => {
