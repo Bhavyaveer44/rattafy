@@ -40,30 +40,7 @@ const LIKELIHOOD_META = {
   wildcard: { emoji: "🎲", label: "WILDCARD", chip: "bg-amber-500/20 text-amber-300" },
 } as const;
 
-function predictionToShareText(pred: Prediction) {
-  const lines = [`🔮 Predicted ${pred.subject} paper (via Rattafy):`, ""];
-  pred.questions.forEach((q, i) => {
-    lines.push(
-      `${i + 1}. ${LIKELIHOOD_META[q.likelihood].emoji} ${q.q} [${q.marks} marks]`
-    );
-  });
-  lines.push("", pred.disclaimer, "", `Predict yours 👉 ${window.location.origin}`);
-  return lines.join("\n");
-}
-
-function planToShareText(plan: Plan) {
-  const lines = [`📚 My ${plan.subject} cram plan (via Rattafy):`, ""];
-  for (const p of ["study", "skim", "sacrifice"] as const) {
-    const items = plan.items.filter((i) => i.priority === p);
-    if (!items.length) continue;
-    lines.push(`${PRIORITY_META[p].emoji} ${PRIORITY_META[p].title}`);
-    for (const i of items)
-      lines.push(`• ${i.topic}${i.minutes ? ` — ${formatMinutes(i.minutes)}` : ""}`);
-    lines.push("");
-  }
-  lines.push(`Make yours 👉 ${window.location.origin}`);
-  return lines.join("\n");
-}
+const SITE_URL = "https://rattafy.vercel.app";
 
 export default function Home() {
   const [syllabus, setSyllabus] = useState("");
@@ -73,7 +50,6 @@ export default function Home() {
   const [loadingLine, setLoadingLine] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
-  const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [photoStatus, setPhotoStatus] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -85,7 +61,6 @@ export default function Home() {
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [predicting, setPredicting] = useState(false);
   const [predictError, setPredictError] = useState<string | null>(null);
-  const [copiedQ, setCopiedQ] = useState(false);
   const [stats, setStats] = useState<{ plans: number; predictions: number } | null>(null);
   const [answers, setAnswers] = useState<Record<number, ModelAnswer>>({});
   const [answerLoading, setAnswerLoading] = useState<number | null>(null);
@@ -135,33 +110,8 @@ export default function Home() {
     }
   }
 
-  async function share() {
-    if (!plan) return;
-    const text = planToShareText(plan);
-    if (navigator.share) {
-      try {
-        await navigator.share({ text, url: window.location.origin });
-        return;
-      } catch {
-        /* user cancelled — fall through to clipboard */
-      }
-    }
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
   async function copyLink() {
-    const url = window.location.origin;
-    if (navigator.share) {
-      try {
-        await navigator.share({ url });
-        return;
-      } catch {
-        /* user cancelled — fall through to clipboard */
-      }
-    }
-    await navigator.clipboard.writeText(url);
+    await navigator.clipboard.writeText(SITE_URL);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
   }
@@ -273,22 +223,6 @@ export default function Home() {
     } finally {
       setPredicting(false);
     }
-  }
-
-  async function shareQuestions() {
-    if (!prediction) return;
-    const text = predictionToShareText(prediction);
-    if (navigator.share) {
-      try {
-        await navigator.share({ text, url: window.location.origin });
-        return;
-      } catch {
-        /* user cancelled — fall through to clipboard */
-      }
-    }
-    await navigator.clipboard.writeText(text);
-    setCopiedQ(true);
-    setTimeout(() => setCopiedQ(false), 2000);
   }
 
   const studied = plan?.items.filter((i) => i.priority !== "sacrifice") ?? [];
@@ -560,12 +494,6 @@ export default function Home() {
                   })}
                 </ul>
                 <p className="mt-3 text-center text-xs italic text-zinc-500">{prediction.disclaimer}</p>
-                <button
-                  onClick={shareQuestions}
-                  className="mt-3 w-full rounded-xl bg-violet-500 py-3 font-bold text-zinc-950 transition hover:bg-violet-400"
-                >
-                  {copiedQ ? "Copied! Your classmates owe you one 📋" : "Share predicted paper 📤"}
-                </button>
               </>
             )}
           </div>
@@ -574,16 +502,10 @@ export default function Home() {
             <p className="text-sm italic text-zinc-300">“{plan.pep_talk}”</p>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <button
-                onClick={share}
+                onClick={copyLink}
                 className="flex-1 rounded-xl bg-emerald-500 py-3 font-bold text-zinc-950 transition hover:bg-emerald-400"
               >
-                {copied ? "Copied! Paste it in the group 📋" : "Share with classmates 📤"}
-              </button>
-              <button
-                onClick={copyLink}
-                className="flex-1 rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-3 font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
-              >
-                {linkCopied ? "Link copied! 🔗" : "Share the link 🔗"}
+                {linkCopied ? "Link copied! Paste it anywhere 🔗" : "Copy link 🔗"}
               </button>
               <button
                 onClick={() => {
