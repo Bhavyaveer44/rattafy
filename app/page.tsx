@@ -50,6 +50,7 @@ export default function Home() {
   const [loadingLine, setLoadingLine] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
+  const [plannedHours, setPlannedHours] = useState(0);
   const [linkCopied, setLinkCopied] = useState(false);
   const [photoStatus, setPhotoStatus] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -103,6 +104,7 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something broke. Try again.");
       setPlan(data);
+      setPlannedHours(hours);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something broke. Try again.");
     } finally {
@@ -385,6 +387,13 @@ export default function Home() {
             <h2 className="text-xl font-bold">
               {plan.subject} — {formatMinutes(totalMinutes)} of focused war 🪖
             </h2>
+            {plannedHours * 60 > totalMinutes && (
+              <p className="mt-1 text-xs text-zinc-400">
+                ☕ {formatMinutes(plannedHours * 60 - totalMinutes)} of your{" "}
+                {plannedHours}h kept aside for breaks, food and panic-buffer —
+                nobody studies non-stop, plan for the real you
+              </p>
+            )}
             {planUsedPyq && (
               <p className="mt-1 text-xs font-bold text-violet-300">
                 📜 weighted by your actual question papers, not vibes

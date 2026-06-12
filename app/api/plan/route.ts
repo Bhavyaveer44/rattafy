@@ -116,6 +116,18 @@ export async function POST(req: Request) {
     const data = await res.json();
     const plan: Plan = JSON.parse(data.choices[0].message.content);
     if (!Array.isArray(plan.items) || plan.items.length === 0) throw new Error("empty plan");
+    // The model is sloppy at arithmetic and often under-allocates, so
+    // rescale minutes here to actually hit the promised 85% budget.
+    const target = Math.round(hours * 60 * 0.85);
+    for (const i of plan.items) if (i.priority === "sacrifice") i.minutes = 0;
+    const active = plan.items.filter((i) => i.priority !== "sacrifice");
+    const total = active.reduce((s, i) => s + (Number(i.minutes) || 0), 0);
+    if (total > 0 && Math.abs(total - target) > target * 0.05) {
+      const scale = target / total;
+      for (const i of active) {
+        i.minutes = Math.max(5, Math.round(((Number(i.minutes) || 0) * scale) / 5) * 5);
+      }
+    }
     bump("plans");
     return NextResponse.json(plan);
   } catch {
