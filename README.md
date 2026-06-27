@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Rattafy
 
-## Getting Started
+Rattafy is a fast, opinionated exam-prep assistant built with Next.js. It helps students turn a syllabus, study hours, and past-question papers into a ruthless study plan in seconds.
 
-First, run the development server:
+The app is designed for last-minute preparation: it prioritizes what matters, highlights what can be skimmed, and predicts the most likely exam questions before the exam day arrives.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## What it does
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Accepts a syllabus as text or by uploading syllabus photos
+- Reads previous-year question papers from PDF uploads
+- Generates a study plan based on available hours and target goal
+- Classifies topics as Study, Skim, or Sacrifice
+- Predicts likely exam questions and offers short model answers
+- Tracks basic usage stats for plans and predictions
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tech stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS
+- PDF.js for PDF text extraction
+- Groq-backed AI routes for planning, OCR, question prediction, and answer generation
+- Vercel Analytics
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+- app/ — main app UI and API routes
+- app/api/ — server endpoints for planning, OCR, question prediction, answers, and stats
+- components/ — reusable UI components
+- lib/ — helpers for PDF parsing, image handling, and rate limiting
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Getting started
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Install dependencies:
 
-## Deploy on Vercel
+   ```bash
+   npm install
+   ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+2. Create a local environment file and add your Groq API key:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+   ```bash
+   GROQ_API_KEY=your_api_key_here
+   ```
+
+3. Start the development server:
+
+   ```bash
+   npm run dev
+   ```
+
+4. Open http://localhost:3000 in your browser.
+
+## Scripts
+
+- npm run dev — start the local development server
+- npm run build — create a production build
+- npm run start — run the production build locally
+- npm run lint — run ESLint
+
+## Deployment
+
+This project is well suited for deployment on Vercel. Make sure the GROQ_API_KEY environment variable is configured in your hosting environment before deploying.
