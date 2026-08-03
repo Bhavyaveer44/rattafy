@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+const VISION_MODEL = "qwen/qwen3.6-27b";
 const MAX_IMAGE_BYTES = 3_500_000; // stay under Groq's base64 image limit
 
 const PROMPTS = {
