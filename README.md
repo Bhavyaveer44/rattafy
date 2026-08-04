@@ -1,5 +1,7 @@
 # Rattafy
 
+https://rattafy.vercel.app/
+
 Rattafy is a fast, opinionated exam-prep assistant built with Next.js. It helps students turn a syllabus, study hours, and past-question papers into a ruthless study plan in seconds.
 
 The app is designed for last-minute preparation: it prioritizes what matters, highlights what can be skimmed, and predicts the most likely exam questions before the exam day arrives.
