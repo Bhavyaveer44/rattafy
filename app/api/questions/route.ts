@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { bump } from "@/lib/counter";
 import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
 import { callTextAI } from "@/lib/ai-client";
+import { cacheHelpers } from "@/lib/cache";
 
 export type PredictedQuestion = {
   q: string;
@@ -48,6 +49,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Need the syllabus first." }, { status: 400 });
   }
 
+  // Check cache first
+  const cachedPrediction = cacheHelpers.prediction.get(syllabus, pyq);
+  if (cachedPrediction) {
+    return NextResponse.json(cachedPrediction);
+  }
+
   const userPrompt =
     `Syllabus:\n${syllabus}` +
     (pyq
@@ -66,6 +73,8 @@ export async function POST(req: Request) {
     const prediction: Prediction = JSON.parse(content);
     if (!Array.isArray(prediction.questions) || prediction.questions.length === 0)
       throw new Error("empty prediction");
+    // Cache the result
+    cacheHelpers.prediction.set(syllabus, pyq, prediction);
     bump("predictions");
     return NextResponse.json(prediction);
   } catch {

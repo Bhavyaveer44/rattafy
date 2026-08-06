@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
 import { callVisionAI } from "@/lib/ai-client";
+import { cacheHelpers, hashContent } from "@/lib/cache";
 const MAX_IMAGE_BYTES = 3_500_000; // stay under Groq's base64 image limit
 
 const PROMPTS = {
@@ -28,9 +29,19 @@ export async function POST(req: Request) {
   }
   const prompt = PROMPTS[body.kind === "syllabus" ? "syllabus" : "pyq"];
 
+  // Check cache first based on image content hash
+  const imageHash = hashContent(image);
+  const cachedText = cacheHelpers.ocr.get(imageHash);
+  if (cachedText !== null) {
+    return NextResponse.json({ text: cachedText });
+  }
+
   try {
     const text = await callVisionAI(prompt, image);
-    return NextResponse.json({ text: text === "EMPTY" ? "" : text });
+    const resultText = text === "EMPTY" ? "" : text;
+    // Cache the result
+    cacheHelpers.ocr.set(imageHash, resultText);
+    return NextResponse.json({ text: resultText });
   } catch {
     return NextResponse.json({ error: "OCR failed." }, { status: 502 });
   }

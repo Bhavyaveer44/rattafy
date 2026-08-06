@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { bump } from "@/lib/counter";
 import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
 import { callTextAI } from "@/lib/ai-client";
+import { cacheHelpers } from "@/lib/cache";
 
 export type PlanItem = {
   topic: string;
@@ -67,6 +68,12 @@ export async function POST(req: Request) {
     );
   }
 
+  // Check cache first
+  const cachedPlan = cacheHelpers.plan.get(syllabus, hours, goal, pyq);
+  if (cachedPlan) {
+    return NextResponse.json(cachedPlan);
+  }
+
   const userPrompt =
     `Syllabus:\n${syllabus}\n\nHours left before the exam: ${hours}\nGoal: ${GOALS[goal]}` +
     (pyq
@@ -96,6 +103,8 @@ export async function POST(req: Request) {
         i.minutes = Math.max(5, Math.round(((Number(i.minutes) || 0) * scale) / 5) * 5);
       }
     }
+    // Cache the result
+    cacheHelpers.plan.set(syllabus, hours, goal, pyq, plan);
     bump("plans");
     return NextResponse.json(plan);
   } catch {
