@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { bump } from "@/lib/counter";
 import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
-
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL = "llama-3.3-70b-versatile";
+import { callTextAI } from "@/lib/ai-client";
 
 export type PredictedQuestion = {
   q: string;
@@ -31,10 +29,6 @@ Rules:
 - Respond ONLY with JSON: {"subject": string, "questions": [{"q": string, "topic": string, "marks": number, "likelihood": "hot"|"likely"|"wildcard", "evidence": string}], "disclaimer": string}`;
 
 export async function POST(req: Request) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "Server is missing its GROQ_API_KEY." }, { status: 500 });
-  }
 
   if (!(await allow(req, "questions", 15, 3600))) {
     return NextResponse.json({ error: LIMIT_MESSAGE }, { status: 429 });
@@ -60,36 +54,16 @@ export async function POST(req: Request) {
       ? `\n\nPrevious year question papers:\n${pyq}`
       : "\n\n(No PYQs provided — predict from classic patterns.)");
 
-  const res = await fetch(GROQ_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      temperature: 0.5,
-      response_format: { type: "json_object" },
-      messages: [
+  try {
+    const content = await callTextAI(
+      [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userPrompt },
       ],
-    }),
-  });
-
-  if (res.status === 429) {
-    return NextResponse.json(
-      { error: "Too many students predicting right now. Try again in a minute." },
-      { status: 429 }
+      0.5,
+      { type: "json_object" }
     );
-  }
-  if (!res.ok) {
-    return NextResponse.json({ error: "The professor is unavailable. Try again." }, { status: 502 });
-  }
-
-  try {
-    const data = await res.json();
-    const prediction: Prediction = JSON.parse(data.choices[0].message.content);
+    const prediction: Prediction = JSON.parse(content);
     if (!Array.isArray(prediction.questions) || prediction.questions.length === 0)
       throw new Error("empty prediction");
     bump("predictions");

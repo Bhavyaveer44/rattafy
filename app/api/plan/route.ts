@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { bump } from "@/lib/counter";
 import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
-
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL = "llama-3.3-70b-versatile";
+import { callTextAI } from "@/lib/ai-client";
 
 export type PlanItem = {
   topic: string;
@@ -39,13 +37,6 @@ Rules:
 - Respond ONLY with JSON: {"subject": string, "strategy": string, "items": [{"topic": string, "priority": "study"|"skim"|"sacrifice", "minutes": number, "reason": string}], "pep_talk": string}. Sacrifice items get "minutes": 0. Order items: study first (most important first), then skim, then sacrifice.`;
 
 export async function POST(req: Request) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "Server is missing its GROQ_API_KEY." },
-      { status: 500 }
-    );
-  }
 
   if (!(await allow(req, "plan", 15, 3600))) {
     return NextResponse.json({ error: LIMIT_MESSAGE }, { status: 429 });
@@ -82,39 +73,16 @@ export async function POST(req: Request) {
       ? `\n\nPrevious year question papers (use these to weight topics by what ACTUALLY gets asked):\n${pyq}`
       : "");
 
-  const res = await fetch(GROQ_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      temperature: 0.6,
-      response_format: { type: "json_object" },
-      messages: [
+  try {
+    const content = await callTextAI(
+      [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userPrompt },
       ],
-    }),
-  });
-
-  if (res.status === 429) {
-    return NextResponse.json(
-      { error: "Too many students cramming right now. Try again in a minute." },
-      { status: 429 }
+      0.6,
+      { type: "json_object" }
     );
-  }
-  if (!res.ok) {
-    return NextResponse.json(
-      { error: "The AI senior is unavailable. Try again." },
-      { status: 502 }
-    );
-  }
-
-  try {
-    const data = await res.json();
-    const plan: Plan = JSON.parse(data.choices[0].message.content);
+    const plan: Plan = JSON.parse(content);
     if (!Array.isArray(plan.items) || plan.items.length === 0) throw new Error("empty plan");
     // The model is sloppy at arithmetic and often under-allocates, so
     // rescale minutes here to actually hit the promised 85% budget.

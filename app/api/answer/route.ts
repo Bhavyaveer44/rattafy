@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { bump } from "@/lib/counter";
 import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
-
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL = "llama-3.3-70b-versatile";
+import { callTextAI } from "@/lib/ai-client";
 
 export type ModelAnswer = {
   answer: string;
@@ -21,10 +19,6 @@ Rules:
 - Respond ONLY with JSON: {"answer": string, "examiner_tip": string}`;
 
 export async function POST(req: Request) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "Server is missing its GROQ_API_KEY." }, { status: 500 });
-  }
 
   if (!(await allow(req, "answer", 40, 3600))) {
     return NextResponse.json({ error: LIMIT_MESSAGE }, { status: 429 });
@@ -45,39 +39,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No question given." }, { status: 400 });
   }
 
-  const res = await fetch(GROQ_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      temperature: 0.4,
-      response_format: { type: "json_object" },
-      messages: [
+  try {
+    const content = await callTextAI(
+      [
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
           content: `Subject: ${subject || "unknown"}\nQuestion (${marks} marks): ${question}`,
         },
       ],
-    }),
-  });
-
-  if (res.status === 429) {
-    return NextResponse.json(
-      { error: "Too many students cramming right now. Try again in a minute." },
-      { status: 429 }
+      0.4,
+      { type: "json_object" }
     );
-  }
-  if (!res.ok) {
-    return NextResponse.json({ error: "The topper is busy. Try again." }, { status: 502 });
-  }
-
-  try {
-    const data = await res.json();
-    const result: ModelAnswer = JSON.parse(data.choices[0].message.content);
+    const result: ModelAnswer = JSON.parse(content);
     if (!result.answer) throw new Error("empty answer");
     bump("answers");
     return NextResponse.json(result);
