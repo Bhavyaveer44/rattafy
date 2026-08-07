@@ -77,7 +77,16 @@ export async function POST(req: Request) {
     cacheHelpers.prediction.set(syllabus, pyq, prediction);
     bump("predictions");
     return NextResponse.json(prediction);
-  } catch {
+  } catch (error) {
+    // Fallback to stale cache if available
+    const stalePrediction = cacheHelpers.prediction.getStale(syllabus, pyq);
+    if (stalePrediction) {
+      return NextResponse.json({
+        ...stalePrediction,
+        _fallback: true,
+        _warning: "Using cached result due to API unavailability. Results may be outdated."
+      });
+    }
     return NextResponse.json(
       { error: "Got a confusing answer from the professor. Try again." },
       { status: 502 }

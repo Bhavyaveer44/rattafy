@@ -52,6 +52,22 @@ export function getCache<T>(key: string): T | null {
   return entry.data as T;
 }
 
+// Get cached value even if expired (for fallback)
+export function getStaleCache<T>(key: string): T | null {
+  const entry = memoryCache.get(key);
+  if (!entry) return null;
+
+  // Return stale data if it's not too old (max 7 days)
+  const maxStaleAge = 7 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  if (now - entry.timestamp > maxStaleAge) {
+    memoryCache.delete(key);
+    return null;
+  }
+
+  return entry.data as T;
+}
+
 // Set cached value
 export function setCache<T>(key: string, data: T, ttl: number): void {
   memoryCache.set(key, {
@@ -90,6 +106,10 @@ export const cacheHelpers = {
       const key = generateCacheKey("plan", { syllabus, hours, goal, pyq });
       return getCache(key);
     },
+    getStale: (syllabus: string, hours: number, goal: string, pyq: string) => {
+      const key = generateCacheKey("plan", { syllabus, hours, goal, pyq });
+      return getStaleCache(key);
+    },
     set: (syllabus: string, hours: number, goal: string, pyq: string, data: unknown) => {
       const key = generateCacheKey("plan", { syllabus, hours, goal, pyq });
       setCache(key, data, TTL.PLAN);
@@ -99,6 +119,10 @@ export const cacheHelpers = {
     get: (syllabus: string, pyq: string) => {
       const key = generateCacheKey("prediction", { syllabus, pyq });
       return getCache(key);
+    },
+    getStale: (syllabus: string, pyq: string) => {
+      const key = generateCacheKey("prediction", { syllabus, pyq });
+      return getStaleCache(key);
     },
     set: (syllabus: string, pyq: string, data: unknown) => {
       const key = generateCacheKey("prediction", { syllabus, pyq });
@@ -110,6 +134,10 @@ export const cacheHelpers = {
       const key = generateCacheKey("ocr", { hash: contentHash });
       return getCache(key);
     },
+    getStale: (contentHash: string) => {
+      const key = generateCacheKey("ocr", { hash: contentHash });
+      return getStaleCache(key);
+    },
     set: (contentHash: string, data: unknown) => {
       const key = generateCacheKey("ocr", { hash: contentHash });
       setCache(key, data, TTL.OCR);
@@ -119,6 +147,10 @@ export const cacheHelpers = {
     get: (question: string, marks: number, subject: string) => {
       const key = generateCacheKey("answer", { question, marks, subject });
       return getCache(key);
+    },
+    getStale: (question: string, marks: number, subject: string) => {
+      const key = generateCacheKey("answer", { question, marks, subject });
+      return getStaleCache(key);
     },
     set: (question: string, marks: number, subject: string, data: unknown) => {
       const key = generateCacheKey("answer", { question, marks, subject });

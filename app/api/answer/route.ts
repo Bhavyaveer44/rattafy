@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { bump } from "@/lib/counter";
 import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
 import { callTextAI } from "@/lib/ai-client";
+import { cacheHelpers } from "@/lib/cache";
 
 export type ModelAnswer = {
   answer: string;
@@ -39,6 +40,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No question given." }, { status: 400 });
   }
 
+  // Check cache first
+  const cachedAnswer = cacheHelpers.answer.get(question, marks, subject);
+  if (cachedAnswer) {
+    return NextResponse.json(cachedAnswer);
+  }
+
   try {
     const content = await callTextAI(
       [
@@ -53,9 +60,20 @@ export async function POST(req: Request) {
     );
     const result: ModelAnswer = JSON.parse(content);
     if (!result.answer) throw new Error("empty answer");
+    // Cache the result
+    cacheHelpers.answer.set(question, marks, subject, result);
     bump("answers");
     return NextResponse.json(result);
-  } catch {
+  } catch (error) {
+    // Fallback to stale cache if available
+    const staleAnswer = cacheHelpers.answer.getStale(question, marks, subject);
+    if (staleAnswer) {
+      return NextResponse.json({
+        ...staleAnswer,
+        _fallback: true,
+        _warning: "Using cached result due to API unavailability. Results may be outdated."
+      });
+    }
     return NextResponse.json(
       { error: "Got a confusing answer. Hit the button again." },
       { status: 502 }

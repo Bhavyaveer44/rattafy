@@ -42,7 +42,16 @@ export async function POST(req: Request) {
     // Cache the result
     cacheHelpers.ocr.set(imageHash, resultText);
     return NextResponse.json({ text: resultText });
-  } catch {
+  } catch (error) {
+    // Fallback to stale cache if available
+    const staleText = cacheHelpers.ocr.getStale(imageHash);
+    if (staleText !== null) {
+      return NextResponse.json({ 
+        text: staleText,
+        _fallback: true,
+        _warning: "Using cached result due to API unavailability. Results may be outdated."
+      });
+    }
     return NextResponse.json({ error: "OCR failed." }, { status: 502 });
   }
 }
