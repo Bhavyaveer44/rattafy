@@ -107,7 +107,16 @@ export async function POST(req: Request) {
     cacheHelpers.plan.set(syllabus, hours, goal, pyq, plan);
     bump("plans");
     return NextResponse.json(plan);
-  } catch {
+  } catch (error) {
+    // Fallback to stale cache if available
+    const stalePlan = cacheHelpers.plan.getStale(syllabus, hours, goal, pyq);
+    if (stalePlan) {
+      return NextResponse.json({
+        ...stalePlan,
+        _fallback: true,
+        _warning: "Using cached result due to API unavailability. Results may be outdated."
+      });
+    }
     return NextResponse.json(
       { error: "Got a confusing answer from the AI. Hit the button again." },
       { status: 502 }

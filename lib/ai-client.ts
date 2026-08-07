@@ -123,6 +123,21 @@ const failedProviders = new Set<Provider>();
 const failureTimestamps = new Map<Provider, number>();
 const FAILURE_COOLDOWN = 5 * 60 * 1000; // 5 minutes
 
+// Exponential backoff configuration
+const MAX_RETRIES = 3;
+const INITIAL_BACKOFF_MS = 1000; // 1 second
+const MAX_BACKOFF_MS = 10000; // 10 seconds
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function getBackoffDelay(retryCount: number): number {
+  const delay = Math.min(INITIAL_BACKOFF_MS * Math.pow(2, retryCount), MAX_BACKOFF_MS);
+  // Add jitter to avoid thundering herd
+  return delay + Math.random() * 1000;
+}
+
 function isProviderAvailable(provider: Provider): boolean {
   if (!failedProviders.has(provider)) return true;
   
@@ -173,41 +188,64 @@ export async function callAI(
     const config = providerConfigs[providerName];
     const headers = getHeaders(providerName, apiKey);
 
-    try {
-      const response = await fetch(config.url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          model: config.model,
-          ...request,
-        }),
-      });
+    // Try with exponential backoff retry
+    for (let retry = 0; retry <= MAX_RETRIES; retry++) {
+      try {
+        const response = await fetch(config.url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            model: config.model,
+            ...request,
+          }),
+        });
 
-      if (response.status === 429) {
-        // Rate limited - mark as failed and try next provider
-        markProviderFailed(providerName);
-        lastError.message = `${providerName} rate limited. Trying next provider...`;
+        if (response.status === 429) {
+          // Rate limited - if this is the last retry, mark as failed and try next provider
+          if (retry === MAX_RETRIES) {
+            markProviderFailed(providerName);
+            lastError.message = `${providerName} rate limited after retries. Trying next provider...`;
+            break;
+          }
+          // Otherwise, wait and retry
+          const delay = getBackoffDelay(retry);
+          await sleep(delay);
+          continue;
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          // If this is the last retry, mark as failed and try next provider
+          if (retry === MAX_RETRIES) {
+            markProviderFailed(providerName);
+            lastError.message = `${providerName} failed after retries: ${errorText}`;
+            break;
+          }
+          // Otherwise, wait and retry
+          const delay = getBackoffDelay(retry);
+          await sleep(delay);
+          continue;
+        }
+
+        const data = await response.json();
+        
+        // Reset failure status on success
+        failedProviders.delete(providerName);
+        failureTimestamps.delete(providerName);
+        
+        return data;
+      } catch (error) {
+        // If this is the last retry, mark as failed and try next provider
+        if (retry === MAX_RETRIES) {
+          markProviderFailed(providerName);
+          lastError.message = `${providerName} error after retries: ${error instanceof Error ? error.message : String(error)}`;
+          break;
+        }
+        // Otherwise, wait and retry
+        const delay = getBackoffDelay(retry);
+        await sleep(delay);
         continue;
       }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        markProviderFailed(providerName);
-        lastError.message = `${providerName} failed: ${errorText}`;
-        continue;
-      }
-
-      const data = await response.json();
-      
-      // Reset failure status on success
-      failedProviders.delete(providerName);
-      failureTimestamps.delete(providerName);
-      
-      return data;
-    } catch (error) {
-      markProviderFailed(providerName);
-      lastError.message = `${providerName} error: ${error instanceof Error ? error.message : String(error)}`;
-      continue;
     }
   }
 
