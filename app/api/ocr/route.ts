@@ -7,7 +7,7 @@ const MAX_IMAGE_BYTES = 3_500_000; // stay under Groq's base64 image limit
 const PROMPTS = {
   pyq: "This is a page from a college exam question paper. Extract ALL the text on it, preserving question numbers and marks (e.g. '[10 marks]'). Output ONLY the extracted text — no commentary. If the page has no readable text, output exactly: EMPTY",
   syllabus:
-    "This is a photo of a college syllabus / unit list. Extract ALL the text on it, preserving unit numbers and topic names. Output ONLY the extracted text — no commentary. If there is no readable text, output exactly: EMPTY",
+    "This is a photo of a college syllabus / unit list. Extract ALL the text EXACTLY as written, preserving unit numbers, topic names, and any hierarchical structure. Be extremely accurate - do not summarize or paraphrase. Keep the original formatting with line breaks. Output ONLY the extracted text — no commentary. If there is no readable text, output exactly: EMPTY",
 } as const;
 
 export async function POST(req: Request) {

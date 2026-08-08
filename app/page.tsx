@@ -120,7 +120,7 @@ export default function Home() {
 
   async function handlePyqFiles(list: FileList | null) {
     if (!list?.length) return;
-    const files = Array.from(list).slice(0, 3);
+    const files = Array.from(list).slice(0, 5);
     setPyqError(null);
     setPyqStatus("opening PDFs…");
     try {
@@ -146,7 +146,7 @@ export default function Home() {
 
   async function handleSyllabusPhotos(list: FileList | null) {
     if (!list?.length) return;
-    const files = Array.from(list).slice(0, 3);
+    const files = Array.from(list).slice(0, 5);
     setPhotoError(null);
     let added = "";
     try {
