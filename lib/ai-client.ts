@@ -37,7 +37,7 @@ const PROVIDERS: Record<Provider, Omit<AIProvider, "apiKey">> = {
   groq: {
     name: "groq",
     url: "https://api.groq.com/openai/v1/chat/completions",
-    model: "llama-3.3-70b-versatile",
+    model: "openai/gpt-oss-120b",
     headers: {},
   },
   huggingface: {
@@ -65,7 +65,7 @@ const VISION_PROVIDERS: Record<Provider, Omit<AIProvider, "apiKey">> = {
   groq: {
     name: "groq",
     url: "https://api.groq.com/openai/v1/chat/completions",
-    model: "qwen/qwen3.6-27b",
+    model: "qwen/qwen3.8-27b",
     headers: {},
   },
   huggingface: {

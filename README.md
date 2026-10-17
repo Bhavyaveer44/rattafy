@@ -33,16 +33,16 @@ The app is designed for last-minute preparation: it prioritizes what matters, hi
 
 ## Project structure
 
-- `app/` — main app UI and API routes
-- `app/api/` — server endpoints (plan, questions, answer, ocr, stats)
-- `lib/` — core utilities
-  - `ai-client.ts` — Multi-API rotation with retry logic
-  - `cache.ts` — Intelligent caching layer
-  - `pdf.ts` — PDF text extraction with OCR
-  - `image.ts` — Image compression for OCR
-  - `ratelimit.ts` — Rate limiting with Upstash Redis
-  - `counter.ts` — Usage statistics tracking
-- `components/` — reusable UI components
+- `app/` - main app UI and API routes
+- `app/api/` - server endpoints (plan, questions, answer, ocr, stats)
+- `lib/` - core utilities
+  - `ai-client.ts` - Multi-API rotation with retry logic
+  - `cache.ts` - Intelligent caching layer
+  - `pdf.ts` - PDF text extraction with OCR
+  - `image.ts` - Image compression for OCR
+  - `ratelimit.ts` - Rate limiting with Upstash Redis
+  - `counter.ts` - Usage statistics tracking
+- `components/` - reusable UI components
 
 ## Getting started
 
@@ -74,10 +74,10 @@ The app is designed for last-minute preparation: it prioritizes what matters, hi
 
 ## Scripts
 
-- npm run dev — start the local development server
-- npm run build — create a production build
-- npm run start — run the production build locally
-- npm run lint — run ESLint
+- npm run dev - start the local development server
+- npm run build - create a production build
+- npm run start - run the production build locally
+- npm run lint - run ESLint
 
 ## Deployment
 

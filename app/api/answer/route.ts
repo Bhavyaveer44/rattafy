@@ -16,7 +16,7 @@ Rules:
 - Length proportional to marks: ~5 marks = 120-180 words, ~10 marks = 250-350 words. Never pad.
 - Write in plain text with numbered points and line breaks. NO markdown symbols like #, *, or backticks.
 - If a diagram would earn marks, include a line like "(Draw: labelled diagram of ...)" telling them exactly what to draw.
-- "examiner_tip" is one insider line on how to maximise marks on this specific question (e.g. "Underline the keywords BCNF and lossless — examiners scan for them").
+- "examiner_tip" is one insider line on how to maximise marks on this specific question (e.g. "Underline the keywords BCNF and lossless - examiners scan for them").
 - Respond ONLY with JSON: {"answer": string, "examiner_tip": string}`;
 
 export async function POST(req: Request) {

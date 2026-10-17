@@ -19,7 +19,7 @@ export type Plan = {
 };
 
 const GOALS: Record<string, string> = {
-  pass: "just pass the exam (~40% marks). Be absolutely ruthless — sacrifice aggressively, keep only the highest-yield topics.",
+  pass: "just pass the exam (~40% marks). Be absolutely ruthless - sacrifice aggressively, keep only the highest-yield topics.",
   decent: "get a decent score (~60-70% marks). Balance coverage and depth, sacrifice only genuinely low-yield topics.",
   top: "score top marks (85%+). Cover almost everything, sacrifice only if time makes it physically impossible.",
 };
@@ -28,10 +28,10 @@ const SYSTEM_PROMPT = `You are a ruthless but caring senior who has topped every
 
 Rules:
 - Split topics into exactly three priorities: "study" (do properly, likely high weightage), "skim" (read once, formulas/definitions only), "sacrifice" (skip entirely, accept the loss).
-- Allocate minutes ONLY to study and skim items. Total allocated minutes must be at most 85% of the available time (the rest is breaks and buffer — students always overrun).
+- Allocate minutes ONLY to study and skim items. Total allocated minutes must be at most 85% of the available time (the rest is breaks and buffer - students always overrun).
 - Judge weightage like a real exam: numericals, derivations and frequently-asked units beat intro/history chapters.
 - "reason" is one short punchy line (max 12 words) telling them WHY, e.g. "12-mark question guaranteed, comes every year" or "2 marks max, not worth your night".
-- If previous year question papers (PYQs) are provided, they OVERRIDE your general intuition: count how often each topic actually appears, weight priorities by real frequency and marks, and cite the evidence in "reason" (e.g. "asked in every paper, 10 marks each time" or "never appeared in any PYQ — skip").
+- If previous year question papers (PYQs) are provided, they OVERRIDE your general intuition: count how often each topic actually appears, weight priorities by real frequency and marks, and cite the evidence in "reason" (e.g. "asked in every paper, 10 marks each time" or "never appeared in any PYQ - skip").
 - "strategy" is one sentence summarizing the night's approach.
 - "pep_talk" is 1-2 sentences, funny and motivating, desi-senior energy. No cringe.
 - "subject" is your best guess at the subject name from the syllabus.
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
 
   if (syllabus.length < 10) {
     return NextResponse.json(
-      { error: "Paste a bit more of your syllabus — at least a few topics." },
+      { error: "Paste a bit more of your syllabus - at least a few topics." },
       { status: 400 }
     );
   }

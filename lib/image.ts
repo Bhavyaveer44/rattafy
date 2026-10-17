@@ -19,5 +19,5 @@ export async function imageToJpegDataUrl(file: File): Promise<string> {
     const out = canvas.toDataURL("image/jpeg", quality);
     if (out.length <= MAX_DATA_URL_CHARS) return out;
   }
-  throw new Error("That photo is too detailed to compress — try a closer, simpler shot.");
+  throw new Error("That photo is too detailed to compress - try a closer, simpler shot.");
 }

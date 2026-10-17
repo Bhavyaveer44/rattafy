@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 export const alt =
-  "Rattafy — exam tonight? Get a ruthless AI study plan in 30 seconds.";
+  "Rattafy - exam tonight? Get a ruthless AI study plan in 30 seconds.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -76,7 +76,7 @@ export default function Image() {
             color: "#71717a",
           }}
         >
-          rattafy.vercel.app — free · works with your PYQ PDFs 📜
+          rattafy.vercel.app - free · works with your PYQ PDFs 📜
         </div>
       </div>
     ),

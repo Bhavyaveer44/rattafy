@@ -126,7 +126,7 @@ export default function Home() {
     try {
       const { text, ocrPages } = await extractPdfText(files, (p) =>
         setPyqStatus(
-          `${p.mode === "ocr" ? "🔍 reading scanned" : "📖 reading"} ${p.file} — page ${p.page}/${p.pages}`
+          `${p.mode === "ocr" ? "🔍 reading scanned" : "📖 reading"} ${p.file} - page ${p.page}/${p.pages}`
         )
       );
       if (text.length < 100) {
@@ -287,13 +287,13 @@ export default function Home() {
           <label className="mb-2 block text-sm font-semibold text-zinc-300">
             📜 Previous year papers{" "}
             <span className="font-normal text-zinc-500">
-              — optional, makes the plan scary-accurate
+              - optional, makes the plan scary-accurate
             </span>
           </label>
           {pyqText ? (
             <div className="flex items-center justify-between gap-3 rounded-xl border border-violet-500/50 bg-violet-500/10 p-3 text-sm">
               <span className="truncate text-violet-200">
-                📜 {pyqNames.join(", ")} — loaded ✅
+                📜 {pyqNames.join(", ")} - loaded ✅
               </span>
               <button
                 onClick={clearPyq}
@@ -308,7 +308,7 @@ export default function Home() {
             </div>
           ) : (
             <label className="block cursor-pointer rounded-xl border border-dashed border-zinc-600 bg-zinc-950 p-4 text-center text-sm text-zinc-400 transition hover:border-violet-400 hover:text-zinc-200">
-              tap to upload PYQ PDFs (up to 3) — even scanned papers work 📸
+              tap to upload PYQ PDFs (up to 5) - even scanned papers work 📸
               <input
                 type="file"
                 accept="application/pdf,.pdf"
@@ -385,12 +385,12 @@ export default function Home() {
         <section ref={resultRef} className="mt-10 space-y-6">
           <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-5">
             <h2 className="text-xl font-bold">
-              {plan.subject} — {formatMinutes(totalMinutes)} of focused war 🪖
+              {plan.subject} - {formatMinutes(totalMinutes)} of focused war 🪖
             </h2>
             {plannedHours * 60 > totalMinutes && (
               <p className="mt-1 text-xs text-zinc-400">
                 ☕ {formatMinutes(plannedHours * 60 - totalMinutes)} of your{" "}
-                {plannedHours}h kept aside for breaks, food and panic-buffer —
+                {plannedHours}h kept aside for breaks, food and panic-buffer -
                 nobody studies non-stop, plan for the real you
               </p>
             )}
@@ -441,7 +441,7 @@ export default function Home() {
                 <h3 className="text-lg font-bold">🔮 Predict the question paper</h3>
                 <p className="mt-1 text-sm text-zinc-400">
                   {planUsedPyq
-                    ? "Your PYQs are loaded — predictions will follow the actual repetition patterns."
+                    ? "Your PYQs are loaded - predictions will follow the actual repetition patterns."
                     : "Works best with PYQ PDFs uploaded above. Without them, it predicts from classic patterns."}
                 </p>
                 <button
@@ -460,7 +460,7 @@ export default function Home() {
             ) : (
               <>
                 <h3 className="text-lg font-bold">
-                  🔮 Most likely questions — {prediction.subject}
+                  🔮 Most likely questions - {prediction.subject}
                 </h3>
                 <ul className="mt-3 space-y-2">
                   {prediction.questions.map((q, i) => {

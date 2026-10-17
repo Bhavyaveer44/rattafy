@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     `Syllabus:\n${syllabus}` +
     (pyq
       ? `\n\nPrevious year question papers:\n${pyq}`
-      : "\n\n(No PYQs provided — predict from classic patterns.)");
+      : "\n\n(No PYQs provided - predict from classic patterns.)");
 
   try {
     const content = await callTextAI(

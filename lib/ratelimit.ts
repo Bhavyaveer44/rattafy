@@ -37,10 +37,10 @@ export async function allow(
 ): Promise<boolean> {
   const key = `rl:${route}:${clientIp(req)}`;
   const count = await redis(["INCR", key]);
-  if (count === null) return true; // Redis unavailable — fail open
+  if (count === null) return true; // Redis unavailable - fail open
   if (Number(count) === 1) void redis(["EXPIRE", key, windowSeconds]);
   return Number(count) <= limit;
 }
 
 export const LIMIT_MESSAGE =
-  "Whoa, slow down topper — you've hit the hourly limit. Take a chai break and come back. ☕";
+  "Whoa, slow down topper - you've hit the hourly limit. Take a chai break and come back. ☕";

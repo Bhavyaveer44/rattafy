@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Always dark — this app lives at 2 AM */
+/* Always dark - this app lives at 2 AM */
 :root {
   --background: #09090b;
   --foreground: #fafafa;

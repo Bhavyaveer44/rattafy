@@ -38,11 +38,11 @@ export async function extractPdfText(
         .trim();
 
       if (text.length > 80) {
-        // Real text layer — use it directly
+        // Real text layer - use it directly
         onProgress({ file: file.name, page: p, pages: doc.numPages, mode: "text" });
         out += `\n[Page ${p}] ${text}`;
       } else if (ocrPages < MAX_OCR_PAGES) {
-        // Scanned page — render to image and ask the vision model
+        // Scanned page - render to image and ask the vision model
         onProgress({ file: file.name, page: p, pages: doc.numPages, mode: "ocr" });
         const viewport = page.getViewport({ scale: 1.5 });
         const canvas = document.createElement("canvas");
