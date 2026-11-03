@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
 import { callVisionAI } from "@/lib/ai-client";
 import { cacheHelpers, hashContent } from "@/lib/cache";
+import { requireUser } from "@/lib/supabase/require-user";
 const MAX_IMAGE_BYTES = 3_500_000; // stay under Groq's base64 image limit
 
 const PROMPTS = {
@@ -11,6 +12,8 @@ const PROMPTS = {
 } as const;
 
 export async function POST(req: Request) {
+  const { user } = await requireUser();
+  if (!user) return NextResponse.json({ error: "Sign in to use Rattafy." }, { status: 401 });
 
   if (!(await allow(req, "ocr", 60, 3600))) {
     return NextResponse.json({ error: LIMIT_MESSAGE }, { status: 429 });

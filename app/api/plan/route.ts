@@ -3,6 +3,7 @@ import { bump } from "@/lib/counter";
 import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
 import { callTextAI } from "@/lib/ai-client";
 import { cacheHelpers } from "@/lib/cache";
+import { requireUser } from "@/lib/supabase/require-user";
 
 export type PlanItem = {
   topic: string;
@@ -33,11 +34,13 @@ Rules:
 - "reason" is one short punchy line (max 12 words) telling them WHY, e.g. "12-mark question guaranteed, comes every year" or "2 marks max, not worth your night".
 - If previous year question papers (PYQs) are provided, they OVERRIDE your general intuition: count how often each topic actually appears, weight priorities by real frequency and marks, and cite the evidence in "reason" (e.g. "asked in every paper, 10 marks each time" or "never appeared in any PYQ - skip").
 - "strategy" is one sentence summarizing the night's approach.
-- "pep_talk" is 1-2 sentences, funny and motivating, desi-senior energy. No cringe.
+- "pep_talk" is 1-2 sentences, funny and motivating, desi-senior energy. No cringe. No em dashes. No emojis. No hashtags. No cliches. No generic platitudes. Be specific to the subject and syllabus.
 - "subject" is your best guess at the subject name from the syllabus.
 - Respond ONLY with JSON: {"subject": string, "strategy": string, "items": [{"topic": string, "priority": "study"|"skim"|"sacrifice", "minutes": number, "reason": string}], "pep_talk": string}. Sacrifice items get "minutes": 0. Order items: study first (most important first), then skim, then sacrifice.`;
 
 export async function POST(req: Request) {
+  const { user } = await requireUser();
+  if (!user) return NextResponse.json({ error: "Sign in to use Rattafy." }, { status: 401 });
 
   if (!(await allow(req, "plan", 15, 3600))) {
     return NextResponse.json({ error: LIMIT_MESSAGE }, { status: 429 });
