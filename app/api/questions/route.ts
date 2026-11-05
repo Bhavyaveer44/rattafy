@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { bump } from "@/lib/counter";
-import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
+import { allow, rateLimitResponse } from "@/lib/ratelimit";
 import { callTextAI } from "@/lib/ai-client";
 import { cacheHelpers } from "@/lib/cache";
 import { requireUser } from "@/lib/supabase/require-user";
+import { isJsonObject, readJsonBody } from "@/lib/request-body";
 
 export type PredictedQuestion = {
   q: string;
@@ -34,19 +35,19 @@ export async function POST(req: Request) {
   const { user } = await requireUser();
   if (!user) return NextResponse.json({ error: "Sign in to use Rattafy." }, { status: 401 });
 
-  if (!(await allow(req, "questions", 15, 3600))) {
-    return NextResponse.json({ error: LIMIT_MESSAGE }, { status: 429 });
-  }
+  const limit = await allow(req, "questions", user.id, 15, 3600);
+  if (limit !== "allowed") return rateLimitResponse(limit);
 
-  let body: { syllabus?: string; pyq?: string };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
-  }
+  const parsed = await readJsonBody(req, 128 * 1024);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+  if (!isJsonObject(parsed.value)) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  const body = parsed.value;
 
-  const syllabus = (body.syllabus ?? "").trim().slice(0, 6000);
-  const pyq = (body.pyq ?? "").trim().slice(0, 24000);
+  const syllabus = typeof body.syllabus === "string" ? body.syllabus.trim() : "";
+  const pyq = body.pyq === undefined ? "" : typeof body.pyq === "string" ? body.pyq.trim() : null;
+
+  if (pyq === null || pyq.length > 24000) return NextResponse.json({ error: "Past-paper text must be 24,000 characters or fewer." }, { status: 400 });
+  if (syllabus.length > 6000) return NextResponse.json({ error: "Syllabus text must be 6,000 characters or fewer." }, { status: 400 });
 
   if (syllabus.length < 10) {
     return NextResponse.json({ error: "Need the syllabus first." }, { status: 400 });
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
     cacheHelpers.prediction.set(syllabus, pyq, prediction);
     bump("predictions");
     return NextResponse.json(prediction);
-  } catch (error) {
+  } catch {
     // Fallback to stale cache if available
     const stalePrediction = cacheHelpers.prediction.getStale(syllabus, pyq);
     if (stalePrediction) {

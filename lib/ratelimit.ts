@@ -1,46 +1,91 @@
-// Per-IP rate limiting backed by Upstash Redis (free tier) over REST.
-// Fails open: if the env vars are missing or Redis is unreachable, requests pass.
+import { createHash } from "node:crypto";
+import { NextResponse } from "next/server";
 
 const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
 const token = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
 
-async function redis(cmd: (string | number)[]): Promise<unknown> {
+type RateLimitResult = "allowed" | "limited" | "unavailable";
+
+async function redis(command: (string | number)[]): Promise<unknown | null> {
   if (!url || !token) return null;
   try {
-    const res = await fetch(
-      `${url}/${cmd.map((c) => encodeURIComponent(String(c))).join("/")}`,
-      { headers: { Authorization: `Bearer ${token}` } }
+    const response = await fetch(
+      `${url}/${command.map((part) => encodeURIComponent(String(part))).join("/")}`,
+      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
     );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.result;
+    if (!response.ok) return null;
+    const result: unknown = (await response.json()).result;
+    return result ?? null;
   } catch {
     return null;
   }
 }
 
-function clientIp(req: Request): string {
-  const fwd = req.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0].trim();
-  return req.headers.get("x-real-ip") ?? "unknown";
+function clientIp(request: Request): string | null {
+  const forwardedFor = request.headers.get("x-vercel-forwarded-for") ??
+    request.headers.get("x-forwarded-for") ??
+    request.headers.get("x-real-ip");
+  const ip = forwardedFor?.split(",")[0]?.trim();
+  return ip || null;
 }
 
-/**
- * Fixed-window limiter: at most `limit` requests per `windowSeconds` per IP.
- * Returns true if this request is allowed.
- */
-export async function allow(
-  req: Request,
-  route: string,
+function hash(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function incrementWithinLimit(
+  key: string,
   limit: number,
   windowSeconds: number
-): Promise<boolean> {
-  const key = `rl:${route}:${clientIp(req)}`;
-  const count = await redis(["INCR", key]);
-  if (count === null) return true; // Redis unavailable - fail open
-  if (Number(count) === 1) void redis(["EXPIRE", key, windowSeconds]);
-  return Number(count) <= limit;
+): Promise<RateLimitResult> {
+  // Keep increment and expiry atomic so concurrent requests cannot create a permanent counter.
+  const script = "local count = redis.call('INCR', KEYS[1]); if count == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]); end; return count";
+  const result = await redis(["EVAL", script, 1, key, windowSeconds]);
+  if (result === null) return "unavailable";
+  const count = Number(result);
+  if (!Number.isSafeInteger(count) || count < 1) return "unavailable";
+  return count > limit ? "limited" : "allowed";
 }
 
-export const LIMIT_MESSAGE =
-  "Whoa, slow down topper - you've hit the hourly limit. Take a chai break and come back. ☕";
+/** Enforce the same fixed-window quota for both the trusted client IP and signed-in user. */
+export async function allow(
+  request: Request,
+  route: string,
+  userId: string,
+  limit: number,
+  windowSeconds: number
+): Promise<RateLimitResult> {
+  if (!url || !token) {
+    // Keep local development usable; production requests fail closed without the limiter.
+    return process.env.NODE_ENV === "production" ? "unavailable" : "allowed";
+  }
+
+  const ip = clientIp(request);
+  if (ip) {
+    const ipResult = await incrementWithinLimit(
+      `rl:${route}:ip:${hash(ip)}`,
+      limit,
+      windowSeconds
+    );
+    if (ipResult !== "allowed") return ipResult;
+  }
+
+  return incrementWithinLimit(
+    `rl:${route}:user:${hash(userId)}`,
+    limit,
+    windowSeconds
+  );
+}
+
+export function rateLimitResponse(result: Exclude<RateLimitResult, "allowed">) {
+  if (result === "limited") {
+    return NextResponse.json(
+      { error: "Whoa, slow down topper - you've hit the hourly limit. Take a chai break and come back. ☕" },
+      { status: 429 }
+    );
+  }
+  return NextResponse.json(
+    { error: "Requests are temporarily unavailable. Please try again shortly." },
+    { status: 503, headers: { "Retry-After": "30" } }
+  );
+}

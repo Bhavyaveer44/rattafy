@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { bump } from "@/lib/counter";
-import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
+import { allow, rateLimitResponse } from "@/lib/ratelimit";
 import { callTextAI } from "@/lib/ai-client";
 import { cacheHelpers } from "@/lib/cache";
 import { requireUser } from "@/lib/supabase/require-user";
+import { isJsonObject, readJsonBody } from "@/lib/request-body";
 
 export type PlanItem = {
   topic: string;
@@ -42,21 +43,23 @@ export async function POST(req: Request) {
   const { user } = await requireUser();
   if (!user) return NextResponse.json({ error: "Sign in to use Rattafy." }, { status: 401 });
 
-  if (!(await allow(req, "plan", 15, 3600))) {
-    return NextResponse.json({ error: LIMIT_MESSAGE }, { status: 429 });
-  }
+  const limit = await allow(req, "plan", user.id, 15, 3600);
+  if (limit !== "allowed") return rateLimitResponse(limit);
 
-  let body: { syllabus?: string; hours?: number; goal?: string; pyq?: string };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
-  }
+  const parsed = await readJsonBody(req, 128 * 1024);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+  if (!isJsonObject(parsed.value)) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  const body = parsed.value;
 
-  const syllabus = (body.syllabus ?? "").trim().slice(0, 6000);
-  const pyq = (body.pyq ?? "").trim().slice(0, 24000);
+  const syllabus = typeof body.syllabus === "string" ? body.syllabus.trim() : "";
+  const pyq = body.pyq === undefined ? "" : typeof body.pyq === "string" ? body.pyq.trim() : null;
   const hours = Number(body.hours);
-  const goal = GOALS[body.goal ?? ""] ? body.goal! : "pass";
+  const goalValue = body.goal === undefined ? "pass" : body.goal;
+  const goal = typeof goalValue === "string" && Object.hasOwn(GOALS, goalValue) ? goalValue : null;
+
+  if (!goal) return NextResponse.json({ error: "Choose a valid study goal." }, { status: 400 });
+  if (pyq === null || pyq.length > 24000) return NextResponse.json({ error: "Past-paper text must be 24,000 characters or fewer." }, { status: 400 });
+  if (syllabus.length > 6000) return NextResponse.json({ error: "Syllabus text must be 6,000 characters or fewer." }, { status: 400 });
 
   if (syllabus.length < 10) {
     return NextResponse.json(
@@ -64,7 +67,7 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
-  if (!Number.isFinite(hours) || hours < 1 || hours > 48) {
+  if (typeof body.hours !== "number" || !Number.isFinite(hours) || hours < 1 || hours > 48) {
     return NextResponse.json(
       { error: "Hours left must be between 1 and 48." },
       { status: 400 }
@@ -110,7 +113,7 @@ export async function POST(req: Request) {
     cacheHelpers.plan.set(syllabus, hours, goal, pyq, plan);
     bump("plans");
     return NextResponse.json(plan);
-  } catch (error) {
+  } catch {
     // Fallback to stale cache if available
     const stalePlan = cacheHelpers.plan.getStale(syllabus, hours, goal, pyq);
     if (stalePlan) {

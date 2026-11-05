@@ -12,6 +12,7 @@ Rattafy is an exam-prep assistant for students short on time. Give it a syllabus
 - **Past papers:** Upload up to five PDFs. Text is extracted in the browser, with OCR fallback for scanned pages.
 - **Question predictions:** Generate likely exam questions from the syllabus and optionally uploaded past papers.
 - **Model answers:** Request an exam-style answer and examiner tip for predicted questions.
+- **API safeguards:** Generation endpoints validate inputs, cap request sizes, and apply hourly quotas per account and client IP.
 - **Resilient AI requests:** Configured AI providers are tried in sequence, with retries, provider cooldowns, cached results, and stale-cache fallback where available.
 - **Usage totals:** The home page can show the number of plans and predictions generated.
 - **Responsive dark interface:** Designed to work on desktop and mobile screens.

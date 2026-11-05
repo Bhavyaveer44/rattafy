@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
+import { allow, rateLimitResponse } from "@/lib/ratelimit";
 import { callVisionAI } from "@/lib/ai-client";
 import { cacheHelpers, hashContent } from "@/lib/cache";
 import { requireUser } from "@/lib/supabase/require-user";
-const MAX_IMAGE_BYTES = 3_500_000; // stay under Groq's base64 image limit
+import { isJsonObject, readJsonBody } from "@/lib/request-body";
+const MAX_IMAGE_DATA_URL_CHARS = 3_500_000;
 
 const PROMPTS = {
   pyq: "This is a page from a college exam question paper. Extract ALL the text on it, preserving question numbers and marks (e.g. '[10 marks]'). Output ONLY the extracted text - no commentary. If the page has no readable text, output exactly: EMPTY",
@@ -15,22 +16,30 @@ export async function POST(req: Request) {
   const { user } = await requireUser();
   if (!user) return NextResponse.json({ error: "Sign in to use Rattafy." }, { status: 401 });
 
-  if (!(await allow(req, "ocr", 60, 3600))) {
-    return NextResponse.json({ error: LIMIT_MESSAGE }, { status: 429 });
-  }
+  const limit = await allow(req, "ocr", user.id, 60, 3600);
+  if (limit !== "allowed") return rateLimitResponse(limit);
 
-  let body: { image?: string; kind?: string };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
-  }
+  const parsed = await readJsonBody(req, 3_600_000);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+  if (!isJsonObject(parsed.value)) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  const body = parsed.value;
 
-  const image = body.image ?? "";
-  if (!image.startsWith("data:image/jpeg;base64,") || image.length > MAX_IMAGE_BYTES) {
+  const image = typeof body.image === "string" ? body.image : "";
+  const prefix = "data:image/jpeg;base64,";
+  const payload = image.startsWith(prefix) ? image.slice(prefix.length) : "";
+  if (
+    !payload ||
+    image.length > MAX_IMAGE_DATA_URL_CHARS ||
+    payload.length % 4 !== 0 ||
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(payload)
+  ) {
     return NextResponse.json({ error: "Invalid image." }, { status: 400 });
   }
-  const prompt = PROMPTS[body.kind === "syllabus" ? "syllabus" : "pyq"];
+  const kind = body.kind === undefined ? "pyq" : body.kind;
+  if (kind !== "syllabus" && kind !== "pyq") {
+    return NextResponse.json({ error: "Choose a valid OCR input type." }, { status: 400 });
+  }
+  const prompt = PROMPTS[kind];
 
   // Check cache first based on image content hash
   const imageHash = hashContent(image);
@@ -45,7 +54,7 @@ export async function POST(req: Request) {
     // Cache the result
     cacheHelpers.ocr.set(imageHash, resultText);
     return NextResponse.json({ text: resultText });
-  } catch (error) {
+  } catch {
     // Fallback to stale cache if available
     const staleText = cacheHelpers.ocr.getStale(imageHash);
     if (staleText !== null) {

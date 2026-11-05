@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { bump } from "@/lib/counter";
-import { allow, LIMIT_MESSAGE } from "@/lib/ratelimit";
+import { allow, rateLimitResponse } from "@/lib/ratelimit";
 import { callTextAI } from "@/lib/ai-client";
 import { cacheHelpers } from "@/lib/cache";
 import { requireUser } from "@/lib/supabase/require-user";
+import { isJsonObject, readJsonBody } from "@/lib/request-body";
 
 export type ModelAnswer = {
   answer: string;
@@ -24,20 +25,23 @@ export async function POST(req: Request) {
   const { user } = await requireUser();
   if (!user) return NextResponse.json({ error: "Sign in to use Rattafy." }, { status: 401 });
 
-  if (!(await allow(req, "answer", 40, 3600))) {
-    return NextResponse.json({ error: LIMIT_MESSAGE }, { status: 429 });
-  }
+  const limit = await allow(req, "answer", user.id, 40, 3600);
+  if (limit !== "allowed") return rateLimitResponse(limit);
 
-  let body: { question?: string; marks?: number; subject?: string };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
-  }
+  const parsed = await readJsonBody(req, 8 * 1024);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+  if (!isJsonObject(parsed.value)) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  const body = parsed.value;
 
-  const question = (body.question ?? "").trim().slice(0, 1000);
-  const subject = (body.subject ?? "").trim().slice(0, 200);
-  const marks = Number(body.marks) || 10;
+  const question = typeof body.question === "string" ? body.question.trim() : "";
+  const subject = body.subject === undefined ? "" : typeof body.subject === "string" ? body.subject.trim() : null;
+  const marks = body.marks === undefined ? 10 : body.marks;
+
+  if (question.length > 1000) return NextResponse.json({ error: "Question must be 1,000 characters or fewer." }, { status: 400 });
+  if (subject === null || subject.length > 200) return NextResponse.json({ error: "Subject must be 200 characters or fewer." }, { status: 400 });
+  if (typeof marks !== "number" || !Number.isInteger(marks) || marks < 1 || marks > 100) {
+    return NextResponse.json({ error: "Marks must be a whole number from 1 to 100." }, { status: 400 });
+  }
 
   if (question.length < 5) {
     return NextResponse.json({ error: "No question given." }, { status: 400 });
@@ -67,7 +71,7 @@ export async function POST(req: Request) {
     cacheHelpers.answer.set(question, marks, subject, result);
     bump("answers");
     return NextResponse.json(result);
-  } catch (error) {
+  } catch {
     // Fallback to stale cache if available
     const staleAnswer = cacheHelpers.answer.getStale(question, marks, subject);
     if (staleAnswer) {
