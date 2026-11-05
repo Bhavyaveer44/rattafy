@@ -13,6 +13,7 @@ Rattafy is an exam-prep assistant for students short on time. Give it a syllabus
 - **Question predictions:** Generate likely exam questions from the syllabus and optionally uploaded past papers.
 - **Model answers:** Request an exam-style answer and examiner tip for predicted questions.
 - **API safeguards:** Generation endpoints validate inputs, cap request sizes, and apply hourly quotas per account and client IP.
+- **Privacy notice:** `/privacy` explains what account and study data the app and its configured AI providers handle.
 - **Resilient AI requests:** Configured AI providers are tried in sequence, with retries, provider cooldowns, cached results, and stale-cache fallback where available.
 - **Usage totals:** The home page can show the number of plans and predictions generated.
 - **Responsive dark interface:** Designed to work on desktop and mobile screens.
@@ -118,6 +119,7 @@ The app is configured for Vercel.
 | `/api/ocr` | POST | Extract text from an image |
 | `/api/stats` | GET | Read public plan and prediction totals |
 | `/auth/callback` | GET | Complete Supabase email confirmation/sign-in callback |
+| `/privacy` | GET | Read the app's privacy notice |
 
 The plan, questions, answer, and OCR endpoints require a valid signed-in Supabase user. `/api/stats` is public and returns aggregate counts only.
 

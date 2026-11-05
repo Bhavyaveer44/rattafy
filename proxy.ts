@@ -8,8 +8,10 @@ export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/api/")) return response;
 
   const hasUser = Boolean(claims?.sub);
-  const isSignInRoute = request.nextUrl.pathname === "/signin" || request.nextUrl.pathname.startsWith("/auth/");
-  if (!hasUser && !isSignInRoute) {
+  const isPublicRoute = request.nextUrl.pathname === "/signin" ||
+    request.nextUrl.pathname === "/privacy" ||
+    request.nextUrl.pathname.startsWith("/auth/");
+  if (!hasUser && !isPublicRoute) {
     const signInUrl = new URL("/signin", request.url);
     const redirect = NextResponse.redirect(signInUrl);
     response.cookies.getAll().forEach(({ name, value, ...options }) => redirect.cookies.set(name, value, options));

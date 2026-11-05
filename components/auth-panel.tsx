@@ -131,6 +131,7 @@ export function AuthPanel({ onUserChange, compact = false }: { onUserChange?: (u
         </>
       )}
       {message && <p aria-live="polite" className={`mt-3 break-words rounded-lg px-3 py-2 text-sm ${/error|invalid|already|weak|failed/i.test(message) ? "bg-rose-500/10 text-rose-300" : "bg-emerald-500/10 text-emerald-300"}`}>{message}</p>}
+      {!user && configured && <p className="mt-4 text-center text-xs leading-relaxed text-zinc-500">Review our <Link href="/privacy" className="text-emerald-300 underline decoration-emerald-500/40 underline-offset-4 hover:text-emerald-200">Privacy Notice</Link> to see how account and study data is handled.</p>}
     </section>
   );
 }

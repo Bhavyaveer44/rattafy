@@ -7,6 +7,7 @@ import type { ModelAnswer } from "@/app/api/answer/route";
 import { extractPdfText } from "@/lib/pdf";
 import { imageToJpegDataUrl } from "@/lib/image";
 import { AuthPanel } from "@/components/auth-panel";
+import Link from "next/link";
 const LOADING_LINES = [
   "Reading your syllabus so you don't have to…",
   "Calculating which chapters deserve to live…",
@@ -251,6 +252,11 @@ export default function Planner() {
           </p>
         )}
       </header>
+
+      <aside className="mt-7 rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3 text-sm leading-relaxed text-zinc-400">
+        <span className="font-semibold text-zinc-200">Privacy note:</span>{" "}
+        Syllabus text, past-paper text, and uploaded or scanned images are sent to Rattafy’s configured AI providers to generate results. Avoid uploading sensitive personal information. <Link href="/privacy" className="font-semibold text-emerald-300 underline decoration-emerald-500/40 underline-offset-4 hover:text-emerald-200">See how your data is handled</Link>.
+      </aside>
 
       {/* Form */}
       <section className="mt-10 space-y-5 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5 sm:p-6">
@@ -535,6 +541,8 @@ export default function Planner() {
 
       <footer className="mt-16 text-center text-xs text-zinc-600">
         Made at 2 AM, for people studying at 2 AM. 🌙
+        <span className="mx-2">·</span>
+        <Link href="/privacy" className="transition hover:text-zinc-300">Privacy</Link>
       </footer>
     </main>
   );
