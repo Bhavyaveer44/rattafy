@@ -5,7 +5,13 @@ import type { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { AuthPanel } from "@/components/auth-panel";
 
-export function AuthPage() {
+export function AuthPage({
+  initialMessage,
+  initialConfirmationPending,
+}: {
+  initialMessage?: string;
+  initialConfirmationPending?: boolean;
+}) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   useEffect(() => {
@@ -17,7 +23,11 @@ export function AuthPage() {
       <div className="w-full max-w-sm">
         <h1 className="mx-auto w-fit text-4xl font-black tracking-tight">Rattafy<span className="text-emerald-400">.</span></h1>
         <p className="mt-3 text-center text-sm text-zinc-400">Your exam-night study plan starts here.</p>
-        <AuthPanel onUserChange={setUser} />
+        <AuthPanel
+          onUserChange={setUser}
+          initialMessage={initialMessage}
+          initialConfirmationPending={initialConfirmationPending}
+        />
       </div>
     </main>
   );

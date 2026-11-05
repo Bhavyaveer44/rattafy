@@ -6,7 +6,7 @@ Rattafy is an exam-prep assistant for students short on time. Give it a syllabus
 
 ## Features
 
-- **Account access:** Email and password signup and sign-in with Supabase Auth. Authentication has its own `/signin` page. The planner and its generation endpoints require a signed-in account.
+- **Account access:** Email and password signup and sign-in with Supabase Auth, confirmation email resend, and password recovery. Authentication has its own `/signin` page. The planner and its generation endpoints require a signed-in account.
 - **Study plans:** Paste a syllabus, choose hours remaining and a target, and get topics grouped into study, skim, and sacrifice priorities.
 - **Syllabus photos:** Upload syllabus photos; Rattafy compresses them in the browser and extracts the text with AI vision.
 - **Past papers:** Upload up to five PDFs. Text is extracted in the browser, with OCR fallback for scanned pages.
@@ -60,12 +60,14 @@ In Supabase, enable email authentication and configure the Auth URL allowlist wi
 
 ```text
 http://localhost:3000/auth/callback
+http://localhost:3000/auth/recovery-callback
 ```
 
 For the deployed app, add:
 
 ```text
 https://rattafy.vercel.app/auth/callback
+https://rattafy.vercel.app/auth/recovery-callback
 ```
 
 The signup flow sends confirmation emails when email confirmation is enabled in Supabase. If confirmation is required, a user must confirm their email before signing in.
@@ -106,7 +108,7 @@ The app is configured for Vercel.
 
 1. Import the repository into Vercel.
 2. Add the environment variables listed above to the Vercel environments you use. Use the same Supabase project URL and publishable key for the intended deployment.
-3. In Supabase Auth URL Configuration, allow `https://rattafy.vercel.app/auth/callback` (and any custom production domain callback you use).
+3. In Supabase Auth URL Configuration, allow both `https://rattafy.vercel.app/auth/callback` and `https://rattafy.vercel.app/auth/recovery-callback` (and the matching paths on any custom production domain you use).
 4. Deploy or redeploy the app after changing environment variables.
 
 ## API routes
@@ -119,6 +121,8 @@ The app is configured for Vercel.
 | `/api/ocr` | POST | Extract text from an image |
 | `/api/stats` | GET | Read public plan and prediction totals |
 | `/auth/callback` | GET | Complete Supabase email confirmation/sign-in callback |
+| `/auth/recovery-callback` | GET | Complete a password recovery callback |
+| `/reset-password` | GET | Set a new password after opening a recovery link |
 | `/privacy` | GET | Read the app's privacy notice |
 
 The plan, questions, answer, and OCR endpoints require a valid signed-in Supabase user. `/api/stats` is public and returns aggregate counts only.
