@@ -35,9 +35,6 @@ export async function POST(req: Request) {
   const { user } = await requireUser();
   if (!user) return NextResponse.json({ error: "Sign in to use Rattafy." }, { status: 401 });
 
-  const limit = await allow(req, "questions", user.id, 15, 3600);
-  if (limit !== "allowed") return rateLimitResponse(limit);
-
   const parsed = await readJsonBody(req, 128 * 1024);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
   if (!isJsonObject(parsed.value)) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
@@ -54,10 +51,13 @@ export async function POST(req: Request) {
   }
 
   // Check cache first
-  const cachedPrediction = cacheHelpers.prediction.get(syllabus, pyq);
+  const cachedPrediction = cacheHelpers.prediction.get(user.id, syllabus, pyq);
   if (cachedPrediction) {
     return NextResponse.json(cachedPrediction);
   }
+
+  const limit = await allow(req, "questions", user.id, 15, 3600);
+  if (limit !== "allowed") return rateLimitResponse(limit);
 
   const userPrompt =
     `Syllabus:\n${syllabus}` +
@@ -78,12 +78,12 @@ export async function POST(req: Request) {
     if (!Array.isArray(prediction.questions) || prediction.questions.length === 0)
       throw new Error("empty prediction");
     // Cache the result
-    cacheHelpers.prediction.set(syllabus, pyq, prediction);
+    cacheHelpers.prediction.set(user.id, syllabus, pyq, prediction);
     bump("predictions");
     return NextResponse.json(prediction);
   } catch {
     // Fallback to stale cache if available
-    const stalePrediction = cacheHelpers.prediction.getStale(syllabus, pyq);
+    const stalePrediction = cacheHelpers.prediction.getStale(user.id, syllabus, pyq);
     if (stalePrediction) {
       return NextResponse.json({
         ...stalePrediction,

@@ -25,9 +25,6 @@ export async function POST(req: Request) {
   const { user } = await requireUser();
   if (!user) return NextResponse.json({ error: "Sign in to use Rattafy." }, { status: 401 });
 
-  const limit = await allow(req, "answer", user.id, 40, 3600);
-  if (limit !== "allowed") return rateLimitResponse(limit);
-
   const parsed = await readJsonBody(req, 8 * 1024);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
   if (!isJsonObject(parsed.value)) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
@@ -48,10 +45,13 @@ export async function POST(req: Request) {
   }
 
   // Check cache first
-  const cachedAnswer = cacheHelpers.answer.get(question, marks, subject);
+  const cachedAnswer = cacheHelpers.answer.get(user.id, question, marks, subject);
   if (cachedAnswer) {
     return NextResponse.json(cachedAnswer);
   }
+
+  const limit = await allow(req, "answer", user.id, 40, 3600);
+  if (limit !== "allowed") return rateLimitResponse(limit);
 
   try {
     const content = await callTextAI(
@@ -68,12 +68,12 @@ export async function POST(req: Request) {
     const result: ModelAnswer = JSON.parse(content);
     if (!result.answer) throw new Error("empty answer");
     // Cache the result
-    cacheHelpers.answer.set(question, marks, subject, result);
+    cacheHelpers.answer.set(user.id, question, marks, subject, result);
     bump("answers");
     return NextResponse.json(result);
   } catch {
     // Fallback to stale cache if available
-    const staleAnswer = cacheHelpers.answer.getStale(question, marks, subject);
+    const staleAnswer = cacheHelpers.answer.getStale(user.id, question, marks, subject);
     if (staleAnswer) {
       return NextResponse.json({
         ...staleAnswer,

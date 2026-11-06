@@ -43,9 +43,6 @@ export async function POST(req: Request) {
   const { user } = await requireUser();
   if (!user) return NextResponse.json({ error: "Sign in to use Rattafy." }, { status: 401 });
 
-  const limit = await allow(req, "plan", user.id, 15, 3600);
-  if (limit !== "allowed") return rateLimitResponse(limit);
-
   const parsed = await readJsonBody(req, 128 * 1024);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
   if (!isJsonObject(parsed.value)) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
@@ -75,10 +72,13 @@ export async function POST(req: Request) {
   }
 
   // Check cache first
-  const cachedPlan = cacheHelpers.plan.get(syllabus, hours, goal, pyq);
+  const cachedPlan = cacheHelpers.plan.get(user.id, syllabus, hours, goal, pyq);
   if (cachedPlan) {
     return NextResponse.json(cachedPlan);
   }
+
+  const limit = await allow(req, "plan", user.id, 15, 3600);
+  if (limit !== "allowed") return rateLimitResponse(limit);
 
   const userPrompt =
     `Syllabus:\n${syllabus}\n\nHours left before the exam: ${hours}\nGoal: ${GOALS[goal]}` +
@@ -110,12 +110,12 @@ export async function POST(req: Request) {
       }
     }
     // Cache the result
-    cacheHelpers.plan.set(syllabus, hours, goal, pyq, plan);
+    cacheHelpers.plan.set(user.id, syllabus, hours, goal, pyq, plan);
     bump("plans");
     return NextResponse.json(plan);
   } catch {
     // Fallback to stale cache if available
-    const stalePlan = cacheHelpers.plan.getStale(syllabus, hours, goal, pyq);
+    const stalePlan = cacheHelpers.plan.getStale(user.id, syllabus, hours, goal, pyq);
     if (stalePlan) {
       return NextResponse.json({
         ...stalePlan,

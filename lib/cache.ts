@@ -102,58 +102,58 @@ export function getCacheStats(): { size: number; keys: string[] } {
 // Cache helpers for specific use cases
 export const cacheHelpers = {
   plan: {
-    get: (syllabus: string, hours: number, goal: string, pyq: string) => {
-      const key = generateCacheKey("plan", { syllabus, hours, goal, pyq });
+    get: (userId: string, syllabus: string, hours: number, goal: string, pyq: string) => {
+      const key = generateCacheKey("plan", { userId, syllabus, hours, goal, pyq });
       return getCache(key);
     },
-    getStale: (syllabus: string, hours: number, goal: string, pyq: string) => {
-      const key = generateCacheKey("plan", { syllabus, hours, goal, pyq });
+    getStale: (userId: string, syllabus: string, hours: number, goal: string, pyq: string) => {
+      const key = generateCacheKey("plan", { userId, syllabus, hours, goal, pyq });
       return getStaleCache(key);
     },
-    set: (syllabus: string, hours: number, goal: string, pyq: string, data: unknown) => {
-      const key = generateCacheKey("plan", { syllabus, hours, goal, pyq });
+    set: (userId: string, syllabus: string, hours: number, goal: string, pyq: string, data: unknown) => {
+      const key = generateCacheKey("plan", { userId, syllabus, hours, goal, pyq });
       setCache(key, data, TTL.PLAN);
     },
   },
   prediction: {
-    get: (syllabus: string, pyq: string) => {
-      const key = generateCacheKey("prediction", { syllabus, pyq });
+    get: (userId: string, syllabus: string, pyq: string) => {
+      const key = generateCacheKey("prediction", { userId, syllabus, pyq });
       return getCache(key);
     },
-    getStale: (syllabus: string, pyq: string) => {
-      const key = generateCacheKey("prediction", { syllabus, pyq });
+    getStale: (userId: string, syllabus: string, pyq: string) => {
+      const key = generateCacheKey("prediction", { userId, syllabus, pyq });
       return getStaleCache(key);
     },
-    set: (syllabus: string, pyq: string, data: unknown) => {
-      const key = generateCacheKey("prediction", { syllabus, pyq });
+    set: (userId: string, syllabus: string, pyq: string, data: unknown) => {
+      const key = generateCacheKey("prediction", { userId, syllabus, pyq });
       setCache(key, data, TTL.PREDICTION);
     },
   },
   ocr: {
-    get: (contentHash: string) => {
-      const key = generateCacheKey("ocr", { hash: contentHash });
+    get: (userId: string, contentHash: string) => {
+      const key = generateCacheKey("ocr", { userId, hash: contentHash });
       return getCache(key);
     },
-    getStale: (contentHash: string) => {
-      const key = generateCacheKey("ocr", { hash: contentHash });
+    getStale: (userId: string, contentHash: string) => {
+      const key = generateCacheKey("ocr", { userId, hash: contentHash });
       return getStaleCache(key);
     },
-    set: (contentHash: string, data: unknown) => {
-      const key = generateCacheKey("ocr", { hash: contentHash });
+    set: (userId: string, contentHash: string, data: unknown) => {
+      const key = generateCacheKey("ocr", { userId, hash: contentHash });
       setCache(key, data, TTL.OCR);
     },
   },
   answer: {
-    get: (question: string, marks: number, subject: string) => {
-      const key = generateCacheKey("answer", { question, marks, subject });
+    get: (userId: string, question: string, marks: number, subject: string) => {
+      const key = generateCacheKey("answer", { userId, question, marks, subject });
       return getCache(key);
     },
-    getStale: (question: string, marks: number, subject: string) => {
-      const key = generateCacheKey("answer", { question, marks, subject });
+    getStale: (userId: string, question: string, marks: number, subject: string) => {
+      const key = generateCacheKey("answer", { userId, question, marks, subject });
       return getStaleCache(key);
     },
-    set: (question: string, marks: number, subject: string, data: unknown) => {
-      const key = generateCacheKey("answer", { question, marks, subject });
+    set: (userId: string, question: string, marks: number, subject: string, data: unknown) => {
+      const key = generateCacheKey("answer", { userId, question, marks, subject });
       setCache(key, data, TTL.ANSWER);
     },
   },
