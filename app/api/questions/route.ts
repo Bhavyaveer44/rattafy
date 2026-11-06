@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { bump } from "@/lib/counter";
 import { allow, rateLimitResponse } from "@/lib/ratelimit";
-import { callTextAI } from "@/lib/ai-client";
+import { AIResponseError, callTextAI, getAIErrorMessage } from "@/lib/ai-client";
 import { cacheHelpers } from "@/lib/cache";
 import { requireUser } from "@/lib/supabase/require-user";
 import { isJsonObject, readJsonBody } from "@/lib/request-body";
+import { reportServerError } from "@/lib/observability";
 
 export type PredictedQuestion = {
   q: string;
@@ -75,24 +76,26 @@ export async function POST(req: Request) {
       { type: "json_object" }
     );
     const prediction: Prediction = JSON.parse(content);
-    if (!Array.isArray(prediction.questions) || prediction.questions.length === 0)
-      throw new Error("empty prediction");
+    if (!Array.isArray(prediction.questions) || prediction.questions.length === 0) {
+      throw new AIResponseError("The AI returned no predicted questions.");
+    }
     // Cache the result
     cacheHelpers.prediction.set(user.id, syllabus, pyq, prediction);
     bump("predictions");
     return NextResponse.json(prediction);
-  } catch {
+  } catch (error) {
+    reportServerError("ai_generation_failed", "/api/questions", error);
     // Fallback to stale cache if available
     const stalePrediction = cacheHelpers.prediction.getStale(user.id, syllabus, pyq);
     if (stalePrediction) {
       return NextResponse.json({
         ...stalePrediction,
         _fallback: true,
-        _warning: "Using cached result due to API unavailability. Results may be outdated."
+        _warning: `${getAIErrorMessage(error, "predict exam questions")} Showing your saved prediction instead.`
       });
     }
     return NextResponse.json(
-      { error: "Got a confusing answer from the professor. Try again." },
+      { error: getAIErrorMessage(error, "predict exam questions") },
       { status: 502 }
     );
   }

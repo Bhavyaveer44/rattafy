@@ -13,6 +13,7 @@ Rattafy is an exam-prep assistant for students short on time. Give it a syllabus
 - **Question predictions:** Generate likely exam questions from the syllabus and optionally uploaded past papers.
 - **Model answers:** Request an exam-style answer and examiner tip for predicted questions.
 - **API safeguards:** Generation endpoints validate inputs, cap request sizes, and apply hourly quotas per account and client IP.
+- **Error monitoring:** Sentry is required in production and captures unhandled app errors and AI/OCR failures; structured server logs omit submitted content and provider response text.
 - **Privacy notice:** `/privacy` explains what account and study data the app and its configured AI providers handle.
 - **Resilient AI requests:** Configured AI providers are tried in sequence, with retries, provider cooldowns, cached results, and stale-cache fallback where available.
 - **Usage totals:** The home page can show the number of plans and predictions generated.
@@ -26,6 +27,7 @@ Rattafy is an exam-prep assistant for students short on time. Give it a syllabus
 - PDF.js for browser-side PDF text extraction
 - Tesseract.js and AI vision for image and scanned-page processing
 - Vercel Analytics and Vercel hosting
+- Sentry error monitoring for Next.js client, server, and edge runtimes
 
 ## Getting started
 
@@ -90,6 +92,10 @@ Open [http://localhost:3000](http://localhost:3000). Signed-out visitors are dir
 | `HUGGINGFACE_API_KEY` | Optional | AI provider fallback |
 | `TOGETHER_API_KEY` | Optional | AI provider fallback |
 | `FIREWORKS_API_KEY` | Optional | AI provider fallback |
+| `SENTRY_DSN` | Required in production | Sentry server and edge error reporting DSN |
+| `NEXT_PUBLIC_SENTRY_DSN` | Required in production | Same Sentry DSN for browser error reporting (public by design) |
+| `SENTRY_ORG`, `SENTRY_PROJECT` | Required in production | Sentry organization and project slugs used for source map uploads |
+| `SENTRY_AUTH_TOKEN` | Required in production | Build token with the `org:ci` scope for source map uploads; keep it secret |
 
 Keep AI provider keys server-side. Do not prefix them with `NEXT_PUBLIC_`.
 
@@ -107,9 +113,13 @@ npm run lint   # Run ESLint
 The app is configured for Vercel.
 
 1. Import the repository into Vercel.
-2. Add the environment variables listed above to the Vercel environments you use. Use the same Supabase project URL and publishable key for the intended deployment.
+2. Add the environment variables listed above to the Vercel environments you use. Use the same Supabase project URL and publishable key for the intended deployment. Production builds fail when any required Sentry setting is missing or the two DSNs differ.
 3. In Supabase Auth URL Configuration, allow both `https://rattafy.vercel.app/auth/callback` and `https://rattafy.vercel.app/auth/recovery-callback` (and the matching paths on any custom production domain you use).
 4. Deploy or redeploy the app after changing environment variables.
+
+### Required Sentry setup
+
+Create a Sentry JavaScript/Next.js project, then add its project DSN to both `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN`. The values must match. Set `SENTRY_ORG` and `SENTRY_PROJECT` to the Sentry slugs shown in the project settings. Create a personal auth token with only the `org:ci` scope and set it as `SENTRY_AUTH_TOKEN`; the build uses it to upload source maps. Production build and startup both fail if these values are missing or the DSNs differ.
 
 ## API routes
 

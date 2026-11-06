@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { bump } from "@/lib/counter";
 import { allow, rateLimitResponse } from "@/lib/ratelimit";
-import { callTextAI } from "@/lib/ai-client";
+import { AIResponseError, callTextAI, getAIErrorMessage } from "@/lib/ai-client";
 import { cacheHelpers } from "@/lib/cache";
 import { requireUser } from "@/lib/supabase/require-user";
 import { isJsonObject, readJsonBody } from "@/lib/request-body";
+import { reportServerError } from "@/lib/observability";
 
 export type ModelAnswer = {
   answer: string;
@@ -66,23 +67,24 @@ export async function POST(req: Request) {
       { type: "json_object" }
     );
     const result: ModelAnswer = JSON.parse(content);
-    if (!result.answer) throw new Error("empty answer");
+    if (!result.answer) throw new AIResponseError("The AI returned an empty model answer.");
     // Cache the result
     cacheHelpers.answer.set(user.id, question, marks, subject, result);
     bump("answers");
     return NextResponse.json(result);
-  } catch {
+  } catch (error) {
+    reportServerError("ai_generation_failed", "/api/answer", error);
     // Fallback to stale cache if available
     const staleAnswer = cacheHelpers.answer.getStale(user.id, question, marks, subject);
     if (staleAnswer) {
       return NextResponse.json({
         ...staleAnswer,
         _fallback: true,
-        _warning: "Using cached result due to API unavailability. Results may be outdated."
+        _warning: `${getAIErrorMessage(error, "generate a model answer")} Showing your saved answer instead.`
       });
     }
     return NextResponse.json(
-      { error: "Got a confusing answer. Hit the button again." },
+      { error: getAIErrorMessage(error, "generate a model answer") },
       { status: 502 }
     );
   }

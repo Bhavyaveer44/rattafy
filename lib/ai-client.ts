@@ -4,6 +4,39 @@
 
 export type Provider = "groq" | "huggingface" | "together" | "fireworks";
 
+export type AIErrorCode =
+  | "configuration"
+  | "cooldown"
+  | "credentials"
+  | "quota"
+  | "model"
+  | "provider_unavailable"
+  | "connection"
+  | "invalid_response"
+  | "provider_rejected"
+  | "all_providers_failed";
+
+export class AIProviderError extends Error {
+  constructor(message: string, public readonly code: AIErrorCode) {
+    super(message);
+    this.name = "AIProviderError";
+  }
+}
+
+export class AIResponseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AIResponseError";
+  }
+}
+
+const PROVIDER_LABELS: Record<Provider, string> = {
+  groq: "Groq",
+  huggingface: "Hugging Face",
+  together: "Together AI",
+  fireworks: "Fireworks AI",
+};
+
 export interface AIProvider {
   name: Provider;
   url: string;
@@ -162,24 +195,79 @@ function markProviderFailed(provider: Provider) {
 function getAvailableProviders(): Provider[] {
   const allProviders: Provider[] = ["groq", "huggingface", "together", "fireworks"];
   return allProviders.filter((p) => {
-    const hasKey = getApiKey(p) !== null;
+    const hasKey = Boolean(getApiKey(p)?.trim());
     const isAvailable = isProviderAvailable(p);
     return hasKey && isAvailable;
   });
+}
+
+function getConfiguredProviders(): Provider[] {
+  const allProviders: Provider[] = ["groq", "huggingface", "together", "fireworks"];
+  return allProviders.filter((provider) => Boolean(getApiKey(provider)?.trim()));
+}
+
+function providerHttpFailure(provider: Provider, status: number) {
+  const label = PROVIDER_LABELS[provider];
+  if (status === 401 || status === 403) {
+    return { code: "credentials" as const, message: `${label} rejected its API key or model access (HTTP ${status}).` };
+  }
+  if (status === 402 || status === 429) {
+    return { code: "quota" as const, message: `${label} quota or rate limit reached (HTTP ${status}).` };
+  }
+  if (status === 404) {
+    return { code: "model" as const, message: `${label} could not find the configured model (HTTP 404).` };
+  }
+  if (status >= 500) {
+    return { code: "provider_unavailable" as const, message: `${label} is temporarily unavailable (HTTP ${status}).` };
+  }
+  return { code: "provider_rejected" as const, message: `${label} rejected the request (HTTP ${status}).` };
+}
+
+function providerExceptionFailure(provider: Provider, error: unknown) {
+  const label = PROVIDER_LABELS[provider];
+  if (error instanceof SyntaxError) {
+    return { code: "invalid_response" as const, message: `${label} returned an invalid response.` };
+  }
+  if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+    return { code: "provider_unavailable" as const, message: `${label} timed out.` };
+  }
+  if (error instanceof TypeError) {
+    return { code: "connection" as const, message: `Could not connect to ${label}. Check your network and try again.` };
+  }
+  return { code: "provider_unavailable" as const, message: `${label} failed unexpectedly.` };
+}
+
+export function getAIErrorMessage(error: unknown, task: string): string {
+  if (error instanceof AIProviderError) return error.message;
+  if (error instanceof AIResponseError) return `${error.message} Please try again.`;
+  if (error instanceof SyntaxError) {
+    return `The AI returned an incomplete response while trying to ${task}. Please try again.`;
+  }
+  return `Couldn't ${task} because of an unexpected AI error. Please try again; if it repeats, check the server logs.`;
 }
 
 export async function callAI(
   request: ChatCompletionRequest,
   vision = false
 ): Promise<ChatCompletionResponse> {
+  const configuredProviders = getConfiguredProviders();
+  if (configuredProviders.length === 0) {
+    throw new AIProviderError(
+      "No AI provider API keys are configured. Add GROQ_API_KEY or another supported provider key.",
+      "configuration"
+    );
+  }
+
   const providers = getAvailableProviders();
-  
   if (providers.length === 0) {
-    throw new Error("No AI providers available. Please configure API keys.");
+    throw new AIProviderError(
+      "All configured AI providers are in cooldown after recent failures. Wait a few minutes and try again.",
+      "cooldown"
+    );
   }
 
   const providerConfigs = vision ? VISION_PROVIDERS : PROVIDERS;
-  const lastError = new Error("All providers failed");
+  const failures: { code: AIErrorCode; message: string }[] = [];
 
   for (const providerName of providers) {
     const apiKey = getApiKey(providerName);
@@ -204,7 +292,7 @@ export async function callAI(
           // Rate limited - if this is the last retry, mark as failed and try next provider
           if (retry === MAX_RETRIES) {
             markProviderFailed(providerName);
-            lastError.message = `${providerName} rate limited after retries. Trying next provider...`;
+            failures.push(providerHttpFailure(providerName, response.status));
             break;
           }
           // Otherwise, wait and retry
@@ -214,11 +302,11 @@ export async function callAI(
         }
 
         if (!response.ok) {
-          const errorText = await response.text();
-          // If this is the last retry, mark as failed and try next provider
-          if (retry === MAX_RETRIES) {
+          const failure = providerHttpFailure(providerName, response.status);
+          const retryable = response.status >= 500 || response.status === 408;
+          if (!retryable || retry === MAX_RETRIES) {
             markProviderFailed(providerName);
-            lastError.message = `${providerName} failed after retries: ${errorText}`;
+            failures.push(failure);
             break;
           }
           // Otherwise, wait and retry
@@ -235,10 +323,10 @@ export async function callAI(
         
         return data;
       } catch (error) {
-        // If this is the last retry, mark as failed and try next provider
         if (retry === MAX_RETRIES) {
           markProviderFailed(providerName);
-          lastError.message = `${providerName} error after retries: ${error instanceof Error ? error.message : String(error)}`;
+          const failure = providerExceptionFailure(providerName, error);
+          failures.push(failure);
           break;
         }
         // Otherwise, wait and retry
@@ -249,7 +337,14 @@ export async function callAI(
     }
   }
 
-  throw lastError;
+  const distinctFailures = [...new Set(failures.map((failure) => failure.message))];
+  const code = failures.length > 0 && failures.every((failure) => failure.code === failures[0].code)
+    ? failures[0].code
+    : "all_providers_failed";
+  throw new AIProviderError(
+    `All configured AI providers failed. ${distinctFailures.join(" ")}`,
+    code
+  );
 }
 
 // Helper function for text-based AI calls (plan, questions, answers)

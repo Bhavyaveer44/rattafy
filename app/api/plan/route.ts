@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { bump } from "@/lib/counter";
 import { allow, rateLimitResponse } from "@/lib/ratelimit";
-import { callTextAI } from "@/lib/ai-client";
+import { AIResponseError, callTextAI, getAIErrorMessage } from "@/lib/ai-client";
 import { cacheHelpers } from "@/lib/cache";
 import { requireUser } from "@/lib/supabase/require-user";
 import { isJsonObject, readJsonBody } from "@/lib/request-body";
+import { reportServerError } from "@/lib/observability";
 
 export type PlanItem = {
   topic: string;
@@ -96,7 +97,9 @@ export async function POST(req: Request) {
       { type: "json_object" }
     );
     const plan: Plan = JSON.parse(content);
-    if (!Array.isArray(plan.items) || plan.items.length === 0) throw new Error("empty plan");
+    if (!Array.isArray(plan.items) || plan.items.length === 0) {
+      throw new AIResponseError("The AI returned an empty study plan.");
+    }
     // The model is sloppy at arithmetic and often under-allocates, so
     // rescale minutes here to actually hit the promised 85% budget.
     const target = Math.round(hours * 60 * 0.85);
@@ -113,18 +116,19 @@ export async function POST(req: Request) {
     cacheHelpers.plan.set(user.id, syllabus, hours, goal, pyq, plan);
     bump("plans");
     return NextResponse.json(plan);
-  } catch {
+  } catch (error) {
+    reportServerError("ai_generation_failed", "/api/plan", error);
     // Fallback to stale cache if available
     const stalePlan = cacheHelpers.plan.getStale(user.id, syllabus, hours, goal, pyq);
     if (stalePlan) {
       return NextResponse.json({
         ...stalePlan,
         _fallback: true,
-        _warning: "Using cached result due to API unavailability. Results may be outdated."
+        _warning: `${getAIErrorMessage(error, "generate a new study plan")} Showing your saved plan instead.`
       });
     }
     return NextResponse.json(
-      { error: "Got a confusing answer from the AI. Hit the button again." },
+      { error: getAIErrorMessage(error, "generate a study plan") },
       { status: 502 }
     );
   }

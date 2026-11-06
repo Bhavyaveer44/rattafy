@@ -50,6 +50,7 @@ export default function Planner() {
   const [loading, setLoading] = useState(false);
   const [loadingLine, setLoadingLine] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [planWarning, setPlanWarning] = useState<string | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [plannedHours, setPlannedHours] = useState(0);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -93,6 +94,7 @@ export default function Planner() {
   async function makePlan() {
     setLoading(true);
     setError(null);
+    setPlanWarning(null);
     setPlan(null);
     setPrediction(null);
     setPlanUsedPyq(Boolean(pyqText));
@@ -104,6 +106,7 @@ export default function Planner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something broke. Try again.");
+      if (typeof data._warning === "string") setPlanWarning(data._warning);
       setPlan(data);
       setPlannedHours(hours);
     } catch (e) {
@@ -125,22 +128,43 @@ export default function Planner() {
     setPyqError(null);
     setPyqStatus("opening PDFs…");
     try {
-      const { text, ocrPages } = await extractPdfText(files, (p) =>
+      const { text, skippedOcr, ocrErrors, ocrLimitReached, textTruncated } = await extractPdfText(files, (p) =>
         setPyqStatus(
           `${p.mode === "ocr" ? "🔍 reading scanned" : "📖 reading"} ${p.file} - page ${p.page}/${p.pages}`
         )
       );
+      const notes = [...ocrErrors];
+      if (ocrLimitReached) {
+        notes.push("OCR is limited to 8 scanned pages per upload; remaining scanned pages were skipped.");
+      }
+      if (textTruncated) {
+        notes.push("PDF text reached the 24,000-character limit; later pages were not included.");
+      }
+      const extractionNote = notes.length > 0 ? [...new Set(notes)].join(" ") : null;
+
       if (text.length < 100) {
-        setPyqError("Couldn't read anything useful from those PDFs. Try different files.");
+        setPyqError(
+          extractionNote
+            ? `Couldn't extract enough readable text from those PDFs. ${extractionNote}`
+            : "Couldn't read anything useful from those PDFs. Try text-based question papers or clearer scans."
+        );
         setPyqStatus(null);
         return;
       }
       setPyqText(text);
       setPyqNames(files.map((f) => f.name));
       setPyqStatus(null);
-      if (ocrPages > 0) setPyqError(null);
-    } catch {
-      setPyqError("Couldn't read those PDFs. Make sure they're valid question papers.");
+      setPyqError(
+        skippedOcr > 0 || textTruncated || extractionNote
+          ? `${skippedOcr > 0 ? `${skippedOcr} scanned page${skippedOcr === 1 ? " was" : "s were"} not read. ` : ""}${extractionNote ?? "Some PDF content was skipped."} The plan will use only the text that was extracted.`
+          : null
+      );
+    } catch (e) {
+      setPyqError(
+        e instanceof Error
+          ? `Couldn't read those PDFs: ${e.message}`
+          : "Couldn't read those PDFs. Make sure they're valid question papers."
+      );
       setPyqStatus(null);
     }
   }
@@ -393,6 +417,11 @@ export default function Planner() {
       {plan && (
         <section ref={resultRef} className="mt-10 space-y-6">
           <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-5">
+            {planWarning && (
+              <p className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200" role="status">
+                {planWarning}
+              </p>
+            )}
             <h2 className="text-xl font-bold">
               {plan.subject} - {formatMinutes(totalMinutes)} of focused war 🪖
             </h2>

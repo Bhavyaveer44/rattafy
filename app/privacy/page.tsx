@@ -66,7 +66,7 @@ export default function PrivacyPage() {
         <p className="border-t border-zinc-800 pt-5 text-xs leading-relaxed text-zinc-600">
           This notice describes the app’s current implementation and may change as its features and providers change.
         </p>
-        <Link href="/signin" className="inline-flex rounded-lg border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:border-zinc-500 hover:text-white">Go to sign in</Link>
+        <Link href="/signin" className="inline-flex rounded-lg border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:border-zinc-500 hover:text-white">Go back</Link>
       </article>
     </main>
   );

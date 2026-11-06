@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { allow, rateLimitResponse } from "@/lib/ratelimit";
-import { callVisionAI } from "@/lib/ai-client";
+import { AIResponseError, callVisionAI, getAIErrorMessage } from "@/lib/ai-client";
 import { cacheHelpers, hashContent } from "@/lib/cache";
 import { requireUser } from "@/lib/supabase/require-user";
 import { isJsonObject, readJsonBody } from "@/lib/request-body";
+import { reportServerError } from "@/lib/observability";
 const MAX_IMAGE_DATA_URL_CHARS = 3_500_000;
 const MAX_IMAGE_BYTES = 2_500_000;
 
@@ -56,20 +57,22 @@ export async function POST(req: Request) {
 
   try {
     const text = await callVisionAI(prompt, image);
-    const resultText = text === "EMPTY" ? "" : text;
+    if (!text.trim()) throw new AIResponseError("The AI returned no OCR text.");
+    const resultText = text.trim() === "EMPTY" ? "" : text.trim();
     // Cache the result
     cacheHelpers.ocr.set(user.id, imageHash, resultText);
     return NextResponse.json({ text: resultText });
-  } catch {
+  } catch (error) {
+    reportServerError("ocr_failed", "/api/ocr", error);
     // Fallback to stale cache if available
     const staleText = cacheHelpers.ocr.getStale(user.id, imageHash);
     if (staleText !== null) {
       return NextResponse.json({ 
         text: staleText,
         _fallback: true,
-        _warning: "Using cached result due to API unavailability. Results may be outdated."
+        _warning: `${getAIErrorMessage(error, "read this image")} Showing previously extracted text instead.`
       });
     }
-    return NextResponse.json({ error: "OCR failed." }, { status: 502 });
+    return NextResponse.json({ error: getAIErrorMessage(error, "read this image") }, { status: 502 });
   }
 }
