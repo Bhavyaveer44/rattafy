@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   const syllabus = typeof body.syllabus === "string" ? body.syllabus.trim() : "";
   const pyq = body.pyq === undefined ? "" : typeof body.pyq === "string" ? body.pyq.trim() : null;
 
-  if (pyq === null || pyq.length > 24000) return NextResponse.json({ error: "Past-paper text must be 24,000 characters or fewer." }, { status: 400 });
+  if (pyq === null || pyq.length > 48000) return NextResponse.json({ error: "Past-paper text must be 48,000 characters or fewer." }, { status: 400 });
   if (syllabus.length > 6000) return NextResponse.json({ error: "Syllabus text must be 6,000 characters or fewer." }, { status: 400 });
 
   if (syllabus.length < 10) {

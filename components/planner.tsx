@@ -64,8 +64,9 @@ export default function Planner() {
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [predicting, setPredicting] = useState(false);
   const [predictError, setPredictError] = useState<string | null>(null);
+  const [predictionWarning, setPredictionWarning] = useState<string | null>(null);
   const [stats, setStats] = useState<{ plans: number; predictions: number } | null>(null);
-  const [answers, setAnswers] = useState<Record<number, ModelAnswer>>({});
+  const [answers, setAnswers] = useState<Record<number, ModelAnswer & { _warning?: string }>>({});
   const [answerLoading, setAnswerLoading] = useState<number | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -95,6 +96,7 @@ export default function Planner() {
     setLoading(true);
     setError(null);
     setPlanWarning(null);
+    setPredictionWarning(null);
     setPlan(null);
     setPrediction(null);
     setPlanUsedPyq(Boolean(pyqText));
@@ -138,7 +140,7 @@ export default function Planner() {
         notes.push("OCR is limited to 8 scanned pages per upload; remaining scanned pages were skipped.");
       }
       if (textTruncated) {
-        notes.push("PDF text reached the 24,000-character limit; later pages were not included.");
+        notes.push("PDF text reached the 48,000-character limit; later pages were not included.");
       }
       const extractionNote = notes.length > 0 ? [...new Set(notes)].join(" ") : null;
 
@@ -235,6 +237,7 @@ export default function Planner() {
   async function predict() {
     setPredicting(true);
     setPredictError(null);
+    setPredictionWarning(null);
     setAnswers({});
     try {
       const res = await fetch("/api/questions", {
@@ -244,6 +247,7 @@ export default function Planner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something broke. Try again.");
+      if (typeof data._warning === "string") setPredictionWarning(data._warning);
       setPrediction(data);
     } catch (e) {
       setPredictError(e instanceof Error ? e.message : "Something broke. Try again.");
@@ -500,6 +504,11 @@ export default function Planner() {
                 <h3 className="text-lg font-bold">
                   🔮 Most likely questions - {prediction.subject}
                 </h3>
+                {predictionWarning && (
+                  <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200" role="status">
+                    {predictionWarning}
+                  </p>
+                )}
                 <ul className="mt-3 space-y-2">
                   {prediction.questions.map((q, i) => {
                     const meta = LIKELIHOOD_META[q.likelihood] ?? LIKELIHOOD_META.likely;
@@ -518,6 +527,11 @@ export default function Planner() {
                         </p>
                         {answers[i] ? (
                           <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                            {(answers[i] as ModelAnswer & { _warning?: string })._warning && (
+                              <p className="mb-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200" role="status">
+                                {(answers[i] as ModelAnswer & { _warning?: string })._warning}
+                              </p>
+                            )}
                             <p className="whitespace-pre-wrap text-sm text-zinc-300">
                               {answers[i].answer}
                             </p>

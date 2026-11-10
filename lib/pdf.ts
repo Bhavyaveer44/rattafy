@@ -10,7 +10,7 @@ export type PdfProgress = {
 };
 
 const MAX_OCR_PAGES = 8; // keep the free vision tier happy
-const MAX_TOTAL_CHARS = 24000;
+const MAX_TOTAL_CHARS = 48000;
 
 export async function extractPdfText(
   files: File[],
